@@ -50,12 +50,12 @@ func (p *Parser) statement(declaration bool) (Statement, error) {
 		switch p.current.Type {
 		case lexer.CONST, lexer.VAR:
 			return p.declaration()
-			// case lexer.FUN:
-			// 	p.advance()
-			// 	if p.match(lexer.IDENTIFIER) {
-			// 		p.back()
-			// 		return p.declaration()
-			// 	}
+		case lexer.FUN:
+			p.advance()
+			if p.match(lexer.IDENTIFIER) {
+				p.back()
+				return p.funDeclaration()
+			}
 		}
 	}
 
@@ -70,6 +70,12 @@ func (p *Parser) statement(declaration bool) (Statement, error) {
 		return p.ifStatement()
 	case lexer.SAY:
 		return p.sayStatement()
+	case lexer.RETURN:
+		return p.returnStatement()
+	case lexer.BREAK:
+		return p.breakStatement()
+	case lexer.CONTINUE:
+		return p.continueStatement()
 	}
 
 	expr, err := p.expression(LOWEST)
@@ -93,10 +99,12 @@ func (p *Parser) statement(declaration bool) (Statement, error) {
 
 func (p *Parser) expression(prec precedence) (expr Expression, err error) {
 	switch p.current.Type {
+	case lexer.FUN:
+		expr, err = p.fun()
 	case lexer.L_PAREN:
 		p.advance()
 		expr, err = p.expression(LOWEST)
-		if err := p.expect(lexer.L_PAREN); err != nil {
+		if err := p.expect(lexer.R_PAREN); err != nil {
 			return nil, err
 		}
 	case lexer.NULL:
@@ -141,8 +149,10 @@ func (p *Parser) expression(prec precedence) (expr Expression, err error) {
 		switch p.current.Type {
 		case lexer.PLUS, lexer.MINUS, lexer.STAR, lexer.SLASH,
 			lexer.LT, lexer.LE, lexer.GT, lexer.GE, lexer.EQ, lexer.NE,
-			lexer.AND, lexer.OR:
+			lexer.AND, lexer.OR, lexer.IS, lexer.ISNT:
 			expr, err = p.infixExpression(expr)
+		case lexer.L_PAREN:
+			expr, err = p.callExpression(expr)
 		default:
 			err = newParseError(
 				p.current,
@@ -150,9 +160,108 @@ func (p *Parser) expression(prec precedence) (expr Expression, err error) {
 				p.current.Literal,
 			)
 		}
+		if err != nil {
+			return
+		}
 	}
 
 	return
+}
+
+func (p *Parser) parameters() ([]*IdentifierLiteral, error) {
+	params := []*IdentifierLiteral{}
+	p.advance()
+	if p.match(lexer.R_PAREN) {
+		return params, nil
+	}
+	for {
+		if !p.match(lexer.IDENTIFIER) {
+			return nil, newParseError(
+				p.current,
+				"expected 'identifier'",
+			)
+		}
+		params = append(
+			params,
+			&IdentifierLiteral{Value: p.current.Literal},
+		)
+		p.advance()
+		if p.match(lexer.R_PAREN) {
+			break
+		}
+		if !p.match(lexer.COMMA) {
+			return nil, newParseError(
+				p.current,
+				"expected ',' or ')'",
+			)
+		}
+		p.advance()
+		if p.match(lexer.R_PAREN) {
+			break
+		}
+	}
+	return params, nil
+}
+
+func (p *Parser) arguments() ([]Expression, error) {
+	args := []Expression{}
+	p.advance()
+	if p.match(lexer.R_PAREN) {
+		return args, nil
+	}
+	for {
+		expr, err := p.expression(LOWEST)
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, expr)
+		p.advance()
+		if p.match(lexer.R_PAREN) {
+			break
+		}
+		if !p.match(lexer.COMMA) {
+			return nil, newParseError(
+				p.current,
+				"expected ',' or ')'",
+			)
+		}
+		p.advance()
+		if p.match(lexer.R_PAREN) {
+			break
+		}
+	}
+	return args, nil
+}
+
+func (p *Parser) fun() (*FunctionLiteral, error) {
+	lit := &FunctionLiteral{}
+	if err := p.expect(lexer.L_PAREN); err != nil {
+		return nil, err
+	}
+	params, err := p.parameters()
+	if err != nil {
+		return nil, err
+	}
+	lit.Parameters = params
+	if err := p.expect(lexer.L_BRACE); err != nil {
+		return nil, err
+	}
+	block, err := p.block()
+	if err != nil {
+		return nil, err
+	}
+	lit.Body = block
+	return lit, nil
+}
+
+func (p *Parser) callExpression(left Expression) (*CallExpression, error) {
+	expr := &CallExpression{Left: left}
+	args, err := p.arguments()
+	if err != nil {
+		return nil, err
+	}
+	expr.Arguments = args
+	return expr, nil
 }
 
 func (p *Parser) infixExpression(left Expression) (*InfixExpression, error) {
@@ -218,6 +327,33 @@ func (p *Parser) declaration() (*Declaration, error) {
 		return nil, newParseError(p.current, "expected ';'")
 	}
 
+	return stmt, nil
+}
+
+func (p *Parser) funDeclaration() (*Declaration, error) {
+	stmt := &Declaration{}
+	p.advance()
+	stmt.Identifier = &IdentifierLiteral{Value: p.current.Literal}
+	if err := p.expect(lexer.L_PAREN); err != nil {
+		return nil, err
+	}
+	params, err := p.parameters()
+	if err != nil {
+		return nil, err
+	}
+	if err := p.expect(lexer.L_BRACE); err != nil {
+		return nil, err
+	}
+	block, err := p.block()
+	if err != nil {
+		return nil, err
+	}
+	right := &FunctionLiteral{
+		Parameters: params,
+		Body:       block,
+	}
+	stmt.Right = right
+	stmt.Mutable = false
 	return stmt, nil
 }
 
@@ -315,6 +451,40 @@ func (p *Parser) whileStatement() (*WhileStatement, error) {
 	return stmt, nil
 }
 
+func (p *Parser) returnStatement() (*ReturnStatement, error) {
+	stmt := &ReturnStatement{}
+	p.advance()
+	if p.match(lexer.SEMICOLON) {
+		stmt.Value = newNullExpression()
+		return stmt, nil
+	}
+	expr, err := p.expression(LOWEST)
+	if err != nil {
+		return nil, err
+	}
+	stmt.Value = expr
+	if err := p.expect(lexer.SEMICOLON); err != nil {
+		return nil, err
+	}
+	return stmt, nil
+}
+
+func (p *Parser) breakStatement() (*BreakStatement, error) {
+	stmt := &BreakStatement{}
+	if err := p.expect(lexer.SEMICOLON); err != nil {
+		return nil, err
+	}
+	return stmt, nil
+}
+
+func (p *Parser) continueStatement() (*ContinueStatement, error) {
+	stmt := &ContinueStatement{}
+	if err := p.expect(lexer.SEMICOLON); err != nil {
+		return nil, err
+	}
+	return stmt, nil
+}
+
 /* == Helpers ================================================================*/
 
 func (p *Parser) expect(
@@ -372,7 +542,7 @@ const (
 	TERM              // + -
 	FACTOR            // * /
 	UN                // - + not
-	CALL              // . ()
+	CALL              // . () []
 	HIGHEST
 )
 
@@ -381,8 +551,10 @@ var precedences = map[lexer.LexemeType]precedence{
 
 	lexer.AND: AND,
 
-	lexer.EQ: EQ,
-	lexer.NE: EQ,
+	lexer.EQ:   EQ,
+	lexer.NE:   EQ,
+	lexer.IS:   EQ,
+	lexer.ISNT: EQ,
 
 	lexer.LT: COMP,
 	lexer.LE: COMP,
@@ -394,6 +566,10 @@ var precedences = map[lexer.LexemeType]precedence{
 
 	lexer.STAR:  FACTOR,
 	lexer.SLASH: FACTOR,
+
+	lexer.L_PAREN:   CALL,
+	lexer.L_BRACKET: CALL,
+	lexer.DOT:       CALL,
 }
 
 func newNullStatement() *ExpressionStatement {

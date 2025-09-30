@@ -40,11 +40,15 @@ func (e *Evaluator) Eval(node parser.Node) (Value, error) {
 		return e.infix(node)
 	case *parser.PrefixExpression:
 		return e.prefix(node)
+	case *parser.CallExpression:
+		return e.call(node)
 
 	case *parser.IdentifierLiteral:
 		return e.env.Get(node.Value)
 	case *parser.NullLiteral:
 		return &Null{}, nil
+	case *parser.BooleanLiteral:
+		return &Boolean{Value: node.Value}, nil
 	case *parser.NumberLiteral:
 		return &Number{Value: node.Value}, nil
 	case *parser.StringLiteral:
@@ -52,7 +56,7 @@ func (e *Evaluator) Eval(node parser.Node) (Value, error) {
 	case *parser.FunctionLiteral:
 		return &Function{
 			FType:   F_FUNCTION,
-			Closure: e.env.Clone(),
+			Closure: e.env,
 			Body:    node.Body.Statements,
 			Parameters: pkg.SliceMap(
 				node.Parameters,
@@ -172,7 +176,7 @@ func (e Evaluator) prefix(node *parser.PrefixExpression) (Value, error) {
 	}
 	if node.Operator == parser.OP_NOT {
 		return &Boolean{
-			Value: toBoolean(right),
+			Value: !toBoolean(right),
 		}, nil
 	}
 	if node.Operator == parser.OP_PLUS ||
@@ -199,6 +203,11 @@ func (e *Evaluator) infix(node *parser.InfixExpression) (Value, error) {
 	right, err := e.Eval(node.Right)
 	if err != nil {
 		return nil, err
+	}
+	if node.Operator == parser.OP_IS {
+		return &Boolean{Value: right == left}, nil
+	} else if node.Operator == parser.OP_ISNT {
+		return &Boolean{Value: right != left}, nil
 	}
 	var f binOp
 	var ok bool
@@ -263,20 +272,6 @@ func (e *Evaluator) call(node *parser.CallExpression) (Value, error) {
 
 	return &Null{}, nil
 }
-
-/*
-f.closure = e.env.clone
-f.body = e.eval
-
-
-f := eval func_literal
-old_env := e.env
-e.env = new_env f.closure
-e.env set attributes < node
-v := e.eval f
-e.env = old_env
--> v
-*/
 
 func (e *Evaluator) script(node *parser.Script) (*Null, error) {
 	for _, stmt := range node.Statements {

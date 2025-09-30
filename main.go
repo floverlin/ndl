@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"needle/cmd"
 	"os"
 )
@@ -14,6 +13,6 @@ func main() {
 		err = cmd.RunFile(os.Args[1])
 	}
 	if err != nil {
-		log.Fatal(err)
+		os.Exit(1)
 	}
 }

@@ -55,7 +55,7 @@ func RunFile(filePath string) error {
 	}
 
 	fmt.Println("== Results ==")
-	fmt.Printf("program ends in %dus", time.Since(start) / time.Microsecond)
+	fmt.Printf("program ends in %v", time.Since(start))
 
 	return nil
 }

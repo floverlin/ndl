@@ -32,12 +32,28 @@ func (lx *Lexer) NextLexeme() *Lexeme {
 	lx.skipWhite()
 	b := lx.read()
 
-	if b == '/' && lx.current() == '/' {
+	if (b == '=' || b == '!') && lx.current() == '=' {
+		first := b
+		lx.read()
+		if lx.current() == '=' {
+			lx.read()
+			if first == '=' {
+				return &Lexeme{Type: IS, Literal: "===", Line: lx.line, Column: lx.column - 3}
+			} else {
+				return &Lexeme{Type: ISNT, Literal: "!==", Line: lx.line, Column: lx.column - 3}
+			}
+		} else {
+			if first == '=' {
+				return &Lexeme{Type: EQ, Literal: "==", Line: lx.line, Column: lx.column - 2}
+			} else {
+				return &Lexeme{Type: NE, Literal: "!=", Line: lx.line, Column: lx.column - 2}
+			}
+		}
+	} else if b == '/' && lx.current() == '/' {
 		lx.read()
 		lx.skipComment()
 		return lx.NextLexeme()
-	}
-	if t, ok := dual[string(b)+string(lx.current())]; ok {
+	} else if t, ok := dual[string(b)+string(lx.current())]; ok {
 		literal := string(b) + string(lx.current())
 		lx.read()
 		return &Lexeme{
@@ -257,8 +273,6 @@ var mono = map[byte]LexemeType{
 var dual = map[string]LexemeType{
 	"<=": LE,
 	">=": GE,
-	"==": EQ,
-	"!=": NE,
 
 	"<-": L_ARROW,
 	"->": R_ARROW,
@@ -273,7 +287,9 @@ var indentifier = map[string]LexemeType{
 	"const": CONST,
 	"fun":   FUN,
 
-	"null": NULL,
+	"null":  NULL,
+	"true":  BOOLEAN,
+	"false": BOOLEAN,
 
 	"for":     FOR,
 	"while":   WHILE,
@@ -283,6 +299,11 @@ var indentifier = map[string]LexemeType{
 	"switch":  SWITCH,
 	"case":    CASE,
 	"default": DEFAULT,
+	"class":   CLASS,
+	"throw":   THROW,
+	"try":     TRY,
+	"catch":   CATCH,
+	"finally": FINALLY,
 
 	"return":   RETURN,
 	"break":    BREAK,

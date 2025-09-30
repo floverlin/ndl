@@ -6,7 +6,7 @@
 
 - Block `{}`
 - Expression `;`
-- Declaration `var` / `const`
+- Declaration `var` / `const` / `fun`
 - Assignment `=`
 - If `if (); else;`
 - While `while ();`
@@ -40,6 +40,8 @@
 - and `and`
 - eq `==`
 - ne `!=`
+- is `===`
+- isnt `!==`
 - lt `<`
 - le `<=`
 - gt `>`
@@ -50,7 +52,6 @@
 - not `not`
 - plus `+`
 - minus `-`
-
 
 ## Code
 

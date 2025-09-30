@@ -15,6 +15,8 @@ const (
 	OP_SLASH Operator = "/"
 	OP_EQ    Operator = "=="
 	OP_NE    Operator = "!="
+	OP_IS    Operator = "==="
+	OP_ISNT  Operator = "!=="
 	OP_LT    Operator = "<"
 	OP_LE    Operator = "<="
 	OP_GT    Operator = ">"
@@ -168,6 +170,35 @@ func (ss *SayStatement) String() string {
 	)
 }
 
+type ReturnStatement struct {
+	Value Expression
+}
+
+func (rs *ReturnStatement) Node()      {}
+func (rs *ReturnStatement) Statement() {}
+func (rs *ReturnStatement) String() string {
+	return fmt.Sprintf(
+		"return %s;",
+		rs.Value,
+	)
+}
+
+type BreakStatement struct{}
+
+func (bs *BreakStatement) Node()      {}
+func (bs *BreakStatement) Statement() {}
+func (bs *BreakStatement) String() string {
+	return "break;"
+}
+
+type ContinueStatement struct{}
+
+func (cs *ContinueStatement) Node()      {}
+func (cs *ContinueStatement) Statement() {}
+func (cs *ContinueStatement) String() string {
+	return "continue;"
+}
+
 // == Expression ==
 
 type InfixExpression struct {
@@ -235,14 +266,16 @@ func (fl *FunctionLiteral) Node()       {}
 func (fl *FunctionLiteral) Expression() {}
 func (fl *FunctionLiteral) String() string {
 	var str strings.Builder
-	for _, param := range fl.Parameters {
+	for i, param := range fl.Parameters {
 		str.WriteString(param.String())
-		str.WriteByte(',')
+		if i != len(fl.Parameters)-1 {
+			str.WriteString(", ")
+		}
 	}
 	params := str.String()
 	return fmt.Sprintf(
 		"fun(%s) %s",
-		params[:len(params)-1],
+		params,
 		fl.Body,
 	)
 }
