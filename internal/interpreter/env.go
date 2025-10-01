@@ -17,13 +17,13 @@ type wrappedValue struct {
 }
 
 type Env struct {
-	store map[string]wrappedValue
+	store map[string]*wrappedValue
 	outer *Env
 }
 
 func NewEnv(outer *Env) *Env {
 	return &Env{
-		store: make(map[string]wrappedValue),
+		store: make(map[string]*wrappedValue),
 		outer: outer,
 	}
 }
@@ -32,7 +32,7 @@ func (e *Env) Declare(name string, value Value, mutable bool) error {
 	if _, exists := e.store[name]; exists {
 		return errVarAlreadyExists
 	}
-	e.store[name] = wrappedValue{Value: value, Mutable: mutable}
+	e.store[name] = &wrappedValue{Value: value, Mutable: mutable}
 	return nil
 }
 
@@ -52,7 +52,7 @@ func (e *Env) Set(name string, value Value) error {
 		if !v.Mutable {
 			return errVarIsImmutable
 		}
-		e.store[name] = wrappedValue{Value: value, Mutable: true}
+		v.Value = value
 		return nil
 	}
 	if e.outer != nil {

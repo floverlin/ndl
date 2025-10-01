@@ -17,7 +17,26 @@ func New(global *Env) *Evaluator {
 	}
 }
 
-func (e *Evaluator) Eval(node parser.Node) (Value, error) {
+func (e *Evaluator) Run(script *parser.Script) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			switch r := r.(type) {
+			case *ContinueSignal:
+				err = errors.New("'continue' not inside loop")
+			case *BreakSignal:
+				err = errors.New("'break' not inside loop")
+			case *ReturnSignal:
+				err = errors.New("'return' not inside function")
+			default:
+				panic(r)
+			}
+		}
+	}()
+	_, err = e.Eval(script)
+	return
+}
+
+func (e *Evaluator) Eval(node parser.Node) (_ Value, err error) {
 	switch node := node.(type) {
 	case *parser.Script:
 		return e.script(node)
@@ -35,6 +54,16 @@ func (e *Evaluator) Eval(node parser.Node) (Value, error) {
 		return e.expression(node)
 	case *parser.AssignmentStatement:
 		return e.assignment(node)
+	case *parser.ReturnStatement:
+		return e.return_(node)
+	case *parser.BreakStatement:
+		panic(&BreakSignal{})
+	case *parser.ContinueStatement:
+		panic(&ContinueSignal{})
+	case *parser.TryStatement:
+		return e.try(node)
+	case *parser.ThrowStatement:
+		return e.throw(node)
 
 	case *parser.InfixExpression:
 		return e.infix(node)
@@ -56,7 +85,7 @@ func (e *Evaluator) Eval(node parser.Node) (Value, error) {
 	case *parser.FunctionLiteral:
 		return &Function{
 			FType:   F_FUNCTION,
-			Closure: e.env,
+			Closure: e.env.Clone(),
 			Body:    node.Body.Statements,
 			Parameters: pkg.SliceMap(
 				node.Parameters,
@@ -127,10 +156,19 @@ func (e *Evaluator) while(node *parser.WhileStatement) (Value, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			if _, ok := r.(*BreakSignal); ok {
+				return
+			}
+			panic(r)
+		}
+	}()
+
 	for toBoolean(cond) {
-		_, doErr := e.Eval(node.Do)
-		if doErr != nil {
-			return nil, doErr
+		if err := e.do(node.Do); err != nil {
+			return nil, err
 		}
 		cond, err = e.Eval(node.Condition)
 		if err != nil {
@@ -138,6 +176,19 @@ func (e *Evaluator) while(node *parser.WhileStatement) (Value, error) {
 		}
 	}
 	return &Null{}, nil
+}
+
+func (e *Evaluator) do(do parser.Statement) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			if _, ok := r.(*ContinueSignal); ok {
+				return
+			}
+			panic(r)
+		}
+	}()
+	_, err = e.Eval(do)
+	return
 }
 
 func (e *Evaluator) expression(
@@ -167,6 +218,35 @@ func (e *Evaluator) assignment(
 		return nil, err
 	}
 	return &Null{}, err
+}
+
+func (e *Evaluator) try(node *parser.TryStatement) (value Value, err error) {
+	defer func() {
+		if _, err = e.Eval(node.Finally); err != nil {
+			value, err = nil, fmt.Errorf("in finally: %w", err)
+		}
+	}()
+	_, err = e.Eval(node.Try)
+	if err != nil {
+		errValue := &String{Value: err.Error()}
+		oldEnv := e.env
+		e.env = NewEnv(oldEnv)
+		defer func() { e.env = oldEnv }()
+		e.env.Declare(node.As.Value, errValue, false)
+		_, err := e.Eval(node.Catch)
+		if err != nil {
+			return nil, fmt.Errorf("in catch: %w", err)
+		}
+	}
+	return &Null{}, nil
+}
+
+func (e *Evaluator) throw(node *parser.ThrowStatement) (Value, error) {
+	errValue, err := e.Eval(node.Error)
+	if err != nil {
+		return nil, err
+	}
+	return nil, errors.New(errValue.Debug())
 }
 
 func (e Evaluator) prefix(node *parser.PrefixExpression) (Value, error) {
@@ -204,11 +284,24 @@ func (e *Evaluator) infix(node *parser.InfixExpression) (Value, error) {
 	if err != nil {
 		return nil, err
 	}
-	if node.Operator == parser.OP_IS {
+
+	switch node.Operator {
+	case parser.OP_IS:
 		return &Boolean{Value: right == left}, nil
-	} else if node.Operator == parser.OP_ISNT {
+	case parser.OP_ISNT:
 		return &Boolean{Value: right != left}, nil
+	case parser.OP_OR:
+		if toBoolean(left) {
+			return left, nil
+		}
+		return right, nil
+	case parser.OP_AND:
+		if toBoolean(left) {
+			return right, nil
+		}
+		return left, nil
 	}
+
 	var f binOp
 	var ok bool
 	switch left.(type) {
@@ -231,7 +324,9 @@ func (e *Evaluator) infix(node *parser.InfixExpression) (Value, error) {
 	return res, nil
 }
 
-func (e *Evaluator) call(node *parser.CallExpression) (Value, error) {
+func (e *Evaluator) call(
+	node *parser.CallExpression,
+) (return_ Value, err error) {
 	left, err := e.Eval(node.Left)
 	if err != nil {
 		return nil, err
@@ -240,6 +335,13 @@ func (e *Evaluator) call(node *parser.CallExpression) (Value, error) {
 	if !ok {
 		return nil, errors.New("can't call non function")
 	}
+	if fun.FType == F_NATIVE {
+		values, argsErr := e.evalExpressions(node.Arguments)
+		if argsErr != nil {
+			return nil, argsErr
+		}
+		return (*fun.Native)(e, values...)
+	}
 	if len(fun.Parameters) != len(node.Arguments) {
 		return nil, fmt.Errorf(
 			"expected %d arguments, got %d",
@@ -247,21 +349,26 @@ func (e *Evaluator) call(node *parser.CallExpression) (Value, error) {
 			len(node.Arguments),
 		)
 	}
-	values := []Value{}
-	for _, arg := range node.Arguments {
-		v, err := e.Eval(arg)
-		if err != nil {
-			return nil, err
-		}
-		values = append(values, v)
+	values, argsErr := e.evalExpressions(node.Arguments)
+	if argsErr != nil {
+		return nil, argsErr
 	}
-
 	oldEnv := e.env
 	defer func() { e.env = oldEnv }()
 	e.env = NewEnv(fun.Closure)
 	for i, val := range values {
 		e.env.Declare(fun.Parameters[i], val, false)
 	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			if rs, ok := r.(*ReturnSignal); ok {
+				return_ = rs.Value
+				return
+			}
+			panic(r)
+		}
+	}()
 
 	for _, stmt := range fun.Body {
 		_, err := e.Eval(stmt)
@@ -271,6 +378,28 @@ func (e *Evaluator) call(node *parser.CallExpression) (Value, error) {
 	}
 
 	return &Null{}, nil
+}
+
+func (e *Evaluator) return_(node *parser.ReturnStatement) (Value, error) {
+	value, err := e.Eval(node.Value)
+	if err != nil {
+		return nil, err
+	}
+	panic(&ReturnSignal{Value: value})
+}
+
+func (e *Evaluator) evalExpressions(
+	exprs []parser.Expression,
+) ([]Value, error) {
+	values := []Value{}
+	for _, expr := range exprs {
+		v, err := e.Eval(expr)
+		if err != nil {
+			return nil, err
+		}
+		values = append(values, v)
+	}
+	return values, nil
 }
 
 func (e *Evaluator) script(node *parser.Script) (*Null, error) {

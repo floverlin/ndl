@@ -45,10 +45,11 @@ func RunFile(filePath string) error {
 	fmt.Println(strings.TrimSpace(script.String()))
 
 	glob := interpreter.NewEnv(nil)
+	interpreter.LoadBuiltins(glob)
 	ev := interpreter.New(glob)
 	fmt.Println("== Output ==")
 	start := time.Now()
-	_, err = ev.Eval(script)
+	err = ev.Run(script)
 	if err != nil {
 		fmt.Printf("runtime error: %s\n", err)
 		return errors.New("runtime error")

@@ -199,6 +199,38 @@ func (cs *ContinueStatement) String() string {
 	return "continue;"
 }
 
+type TryStatement struct {
+	Try     Statement
+	Catch   Statement
+	As      *IdentifierLiteral
+	Finally Statement
+}
+
+func (ts *TryStatement) Node()      {}
+func (ts *TryStatement) Statement() {}
+func (ts *TryStatement) String() string {
+	return fmt.Sprintf(
+		"try %s catch (%s) %s finally %s",
+		ts.Try,
+		ts.As,
+		ts.Catch,
+		ts.Finally,
+	)
+}
+
+type ThrowStatement struct {
+	Error Expression
+}
+
+func (ts *ThrowStatement) Node()      {}
+func (ts *ThrowStatement) Statement() {}
+func (ts *ThrowStatement) String() string {
+	return fmt.Sprintf(
+		"throw %s;",
+		ts.Error,
+	)
+}
+
 // == Expression ==
 
 type InfixExpression struct {

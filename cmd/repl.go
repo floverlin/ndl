@@ -24,8 +24,7 @@ func RunRepl() error {
 			fmt.Printf("compile error: %s\n", err)
 			continue
 		}
-		_, err = ev.Eval(script)
-		if err != nil {
+		if err = ev.Run(script); err != nil {
 			fmt.Printf("runtime error: %s\n", err)
 			continue
 		}

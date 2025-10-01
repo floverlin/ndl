@@ -274,8 +274,7 @@ var dual = map[string]LexemeType{
 	"<=": LE,
 	">=": GE,
 
-	"<-": L_ARROW,
-	"->": R_ARROW,
+	"->": ARROW,
 }
 
 var indentifier = map[string]LexemeType{

@@ -56,6 +56,7 @@ func (p *Parser) statement(declaration bool) (Statement, error) {
 				p.back()
 				return p.funDeclaration()
 			}
+			p.back()
 		}
 	}
 
@@ -76,6 +77,10 @@ func (p *Parser) statement(declaration bool) (Statement, error) {
 		return p.breakStatement()
 	case lexer.CONTINUE:
 		return p.continueStatement()
+	case lexer.TRY:
+		return p.tryStatement()
+	case lexer.THROW:
+		return p.throwStatement()
 	}
 
 	expr, err := p.expression(LOWEST)
@@ -103,6 +108,12 @@ func (p *Parser) expression(prec precedence) (expr Expression, err error) {
 		expr, err = p.fun()
 	case lexer.L_PAREN:
 		p.advance()
+		if p.match(lexer.R_PAREN) {
+			return nil, newParseError(
+				p.current,
+				"unexpected ')'",
+			)
+		}
 		expr, err = p.expression(LOWEST)
 		if err := p.expect(lexer.R_PAREN); err != nil {
 			return nil, err
@@ -485,7 +496,65 @@ func (p *Parser) continueStatement() (*ContinueStatement, error) {
 	return stmt, nil
 }
 
-/* == Helpers ================================================================*/
+func (p *Parser) tryStatement() (*TryStatement, error) {
+	stmt := &TryStatement{}
+	p.advance()
+	try, err := p.statement(false)
+	if err != nil {
+		return nil, err
+	}
+	if err := p.expect(lexer.CATCH); err != nil {
+		return nil, err
+	}
+	if err := p.expect(lexer.L_PAREN); err != nil {
+		return nil, err
+	}
+	if err := p.expect(lexer.IDENTIFIER); err != nil {
+		return nil, err
+	}
+	as := &IdentifierLiteral{Value: p.current.Literal}
+	if err := p.expect(lexer.R_PAREN); err != nil {
+		return nil, err
+	}
+	p.advance()
+	catch, err := p.statement(false)
+	if err != nil {
+		return nil, err
+	}
+	var finally Statement = newNullStatement()
+	p.advance()
+	if p.match(lexer.FINALLY) {
+		p.advance()
+		fin, err := p.statement(false)
+		if err != nil {
+			return nil, err
+		}
+		finally = fin
+	} else {
+		p.back()
+	}
+	stmt.Try = try
+	stmt.As = as
+	stmt.Catch = catch
+	stmt.Finally = finally
+	return stmt, nil
+}
+
+func (p *Parser) throwStatement() (*ThrowStatement, error) {
+	stmt := &ThrowStatement{}
+	p.advance()
+	errValue, err := p.expression(LOWEST)
+	if err != nil {
+		return nil, err
+	}
+	if err := p.expect(lexer.SEMICOLON); err != nil {
+		return nil, err
+	}
+	stmt.Error = errValue
+	return stmt, nil
+}
+
+/* == Helpers =============================================================== */
 
 func (p *Parser) expect(
 	type_ lexer.LexemeType,

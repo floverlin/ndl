@@ -46,8 +46,8 @@ const (
 	IS   LexemeType = "==="
 	ISNT LexemeType = "!=="
 
-	L_ARROW   LexemeType = "<-"
-	R_ARROW   LexemeType = "->"
+	ARROW LexemeType = "->"
+
 	L_PAREN   LexemeType = "("
 	R_PAREN   LexemeType = ")"
 	L_BRACE   LexemeType = "{"

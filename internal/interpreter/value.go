@@ -14,11 +14,23 @@ type Value interface {
 	Debug() string
 }
 
+type SignalType string
+
+type Signal interface {
+	Signal() SignalType
+}
+
 const (
 	F_SCRIPT   FType = "script"
 	F_FUNCTION FType = "function"
 	F_NATIVE   FType = "native"
 	F_METHOD   FType = "method"
+)
+
+const (
+	SIG_RETURN   SignalType = "return"
+	SIG_BREAK    SignalType = "break"
+	SIG_CONTINUE SignalType = "continue"
 )
 
 const (
@@ -28,6 +40,24 @@ const (
 	VAL_STRING   ValueType = "string"
 	VAL_FUNCTION ValueType = "function"
 )
+
+type ReturnSignal struct {
+	Value Value
+}
+
+func (rs *ReturnSignal) Signal() SignalType { return SIG_RETURN }
+
+type BreakSignal struct {
+	Value Value
+}
+
+func (bs *BreakSignal) Signal() SignalType { return SIG_RETURN }
+
+type ContinueSignal struct {
+	Value Value
+}
+
+func (cs *ContinueSignal) Signal() SignalType { return SIG_RETURN }
 
 type Null struct{}
 
@@ -76,6 +106,7 @@ type Function struct {
 	Closure    *Env
 	Body       []parser.Statement
 	Parameters []string
+	Native     *NativeFunction
 }
 
 func (f *Function) Type() ValueType {

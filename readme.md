@@ -9,16 +9,23 @@
 - Declaration `var` / `const` / `fun`
 - Assignment `=`
 - If `if (); else;`
+- For `for (;;);` **TODO**
 - While `while ();`
 - Do `do; while();` **TODO**
 - Say `say;`
 - Import `import . "module";` **TODO**
 - Export `export value;` **TODO**
+- Try `try; catch(); finally;`
+- Throw `throw;`
+- Return `return;`
+- Break `break;`
+- Continue `continue;`
 
 ### Expressions
 
 - Infix `a + b`
 - Prefix `not a`
+- Call `()`
 
 ### Literals
 
@@ -26,7 +33,7 @@
 - boolean `true` / `false`
 - number `12.3`
 - string `"Hello, World!"`
-- function `fun(a, b) { return a + b; }` **TODO**
+- function `fun(a, b) { return a + b; }`
 
 ### Operators
 
@@ -72,4 +79,70 @@ while (b) {
 }
 
 say 2 + 2;
+
+class Document {
+    var name: String
+    constructor new(name) {
+        this.name= name;
+    }
+
+    get .(attr: String): any {
+        return "Hello";
+    }
+    get name(): any {
+        return "Lin";
+    }
+    get [](index: any): any {
+        if (type_of(index) != "number") throw Error("not number index");
+        return this.list[index];
+    }
+    get [:](start: any, end: any): any {
+        if (type_of(start) != "number" or
+            type_of(end) != "number")
+            throw Error("not number index");
+        return this.list[start:end];
+    }
+
+    set .(attr: String, value: any) {
+        this.dict[attr] = value;
+    }
+    set name(name: any) {
+        this.name = name;
+    }
+    set [](index: any, value: any) {
+        if (type_of(index) != "number") throw Error("not number index");
+        return this.list[index] = value;
+    }
+    set [:](start: any, end: any, value: any): any {
+        if (type_of(start) != "number" or
+            type_of(end) != "number")
+            throw Error("not number index");
+        return this.list[start:end] = value;
+    }
+
+    infix plus(other: any): any {  // document plus "haha";
+        return this.name + other;
+    }
+    infix +(other: any): any {
+        return this.name + other;
+    }
+    infix -(other: any): any {
+        return this.name - other;
+    }
+    infix /(other: any): any {
+        return this.name / other;
+    }
+    infix *(other: any): any {
+        return this.name * other;
+    }
+    infix ==(other: any): any {
+        return this.name == other;
+    }
+    infix <(other: any): any {
+        return this.name < other;
+    }
+    infix <=(other: any): any {
+        return this.name <= other;
+    }
+}
 ```
