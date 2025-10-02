@@ -40,7 +40,6 @@ const (
 	VAL_METHOD   ValueType = "method"
 	VAL_INSTANCE ValueType = "instance"
 	VAL_CLASS    ValueType = "class"
-	VAL_THIS     ValueType = "this"
 )
 
 type ReturnSignal struct {
@@ -131,8 +130,3 @@ type Instance struct {
 
 func (i *Instance) Type() ValueType { return VAL_FUNCTION }
 func (i *Instance) Debug() string   { return "<instance>" }
-
-type This struct{}
-
-func (t *This) Type() ValueType { return VAL_THIS }
-func (t *This) Debug() string   { return "this" }

@@ -19,6 +19,7 @@ type wrappedValue struct {
 type Env struct {
 	store map[string]*wrappedValue
 	outer *Env
+	this  Value
 }
 
 // outer can be nil, but root env must have global outer
@@ -71,4 +72,18 @@ func (e *Env) Clone() *Env {
 		store: maps.Clone(e.store),
 		outer: outer,
 	}
+}
+
+func (e *Env) GetThis() Value {
+	if e.this != nil {
+		return e.this
+	}
+	if e.outer != nil {
+		return e.outer.GetThis()
+	}
+	return nil
+}
+
+func (e *Env) SetThis(this Value) {
+	e.this = this
 }

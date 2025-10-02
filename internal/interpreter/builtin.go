@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-type NativeFunction func(e *Evaluator, args ...Value) (Value, error)
+type NativeFunction func(e *Evaluator, this Value, args ...Value) (Value, error)
 
 func LoadBuiltins(env *Env) {
 	for name, builtin := range builtins {
@@ -70,7 +70,7 @@ func checkArgsLength(length int, args []Value) error {
 	return nil
 }
 
-func builtin_clock(e *Evaluator, args ...Value) (Value, error) {
+func builtin_clock(e *Evaluator, this Value, args ...Value) (Value, error) {
 	if err := checkArgsLength(0, args); err != nil {
 		return nil, err
 	}
@@ -78,34 +78,18 @@ func builtin_clock(e *Evaluator, args ...Value) (Value, error) {
 	return &Number{Value: t}, nil
 }
 
-func builtin_hello(e *Evaluator, args ...Value) (Value, error) {
+func builtin_hello(e *Evaluator, this Value, args ...Value) (Value, error) {
 	if err := checkArgsLength(0, args); err != nil {
 		return nil, err
 	}
-	this, err := getThis(e.env)
-	if err != nil {
-		return nil, err
-	}
-	name := this.Fields["name"].(*String)
+	name := this.(*Instance).Fields["name"].(*String)
 	fmt.Printf("Hello, %s!\n", name.Value)
 	return &Null{}, nil
 }
-func builtin_ctor(e *Evaluator, args ...Value) (Value, error) {
+func builtin_ctor(e *Evaluator, this Value, args ...Value) (Value, error) {
 	if err := checkArgsLength(1, args); err != nil {
 		return nil, err
 	}
-	this, err := getThis(e.env)
-	if err != nil {
-		return nil, err
-	}
-	this.Fields["name"] = args[0].(*String)
+	this.(*Instance).Fields["name"] = args[0].(*String)
 	return nil, nil
-}
-
-func getThis(env *Env) (*Instance, error) {
-	thisValue, err := env.Get("this")
-	if err != nil {
-		return nil, err
-	}
-	return thisValue.(*Instance), nil
 }

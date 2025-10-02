@@ -37,7 +37,7 @@ func (e *Evaluator) Run(script *parser.Script) (err error) {
 	return
 }
 
-func (e *Evaluator) Eval(node parser.Node) (_ Value, err error) {
+func (e *Evaluator) Eval(node parser.Node) (Value, error) {
 	switch node := node.(type) {
 	case *parser.Script:
 		return e.script(node)
@@ -78,7 +78,11 @@ func (e *Evaluator) Eval(node parser.Node) (_ Value, err error) {
 	case *parser.IdentifierLiteral:
 		return e.env.Get(node.Value)
 	case *parser.ThisLiteral:
-		return &This{}, nil
+		if this := e.env.GetThis(); this == nil {
+			return nil, errors.New("'this' is undefined")
+		} else {
+			return this, nil
+		}
 	case *parser.NullLiteral:
 		return &Null{}, nil
 	case *parser.BooleanLiteral:
@@ -284,9 +288,9 @@ func (e *Evaluator) assignment(
 		if !ok {
 			return nil, errors.New("can assign only to this object")
 		}
-		instance, err := e.env.Get("this")
-		if err != nil {
-			return nil, err
+		instance := e.env.GetThis()
+		if instance == nil {
+			return nil, errors.New("'this' is undefined")
 		}
 		instance.(*Instance).Fields[prop] = right
 		return &Null{}, nil
@@ -411,14 +415,14 @@ func (e *Evaluator) call(
 		return nil, err
 	}
 	if fun, ok := left.(*Function); ok {
-		return e.callFunction(fun, node.Arguments)
+		return e.callFunction(fun, nil, node.Arguments)
 	}
 	if method, ok := left.(*Method); ok {
-		oldEnv := e.env
-		defer func() { e.env = oldEnv }()
-		e.env = NewEnv(nil)
-		e.env.Declare("this", method.This, false)
-		value, err := e.callFunction(method.Function, node.Arguments)
+		value, err := e.callFunction(
+			method.Function,
+			method.This,
+			node.Arguments,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -432,6 +436,7 @@ func (e *Evaluator) call(
 
 func (e *Evaluator) callFunction(
 	fun *Function,
+	this Value,
 	args []parser.Expression,
 ) (return_ Value, err error) {
 
@@ -441,7 +446,7 @@ func (e *Evaluator) callFunction(
 		if argsErr != nil {
 			return nil, argsErr
 		}
-		return (*fun.Native)(e, values...)
+		return (*fun.Native)(e, this, values...)
 	}
 
 	// call function
@@ -459,6 +464,7 @@ func (e *Evaluator) callFunction(
 	oldEnv := e.env
 	defer func() { e.env = oldEnv }()
 	e.env = NewEnv(fun.Closure)
+	e.env.SetThis(this)
 	for i, val := range values {
 		e.env.Declare(fun.Parameters[i], val, false)
 	}
@@ -490,19 +496,7 @@ func (e *Evaluator) property(node *parser.PropertyExpression) (Value, error) {
 		return nil, err
 	}
 	switch left := left.(type) {
-	case *This:
-		thisValue, err := e.env.Get("this")
-		if err != nil {
-			return nil, errors.New("undefined 'this'")
-		}
-		this := thisValue.(*Instance)
-		value, ok := this.Fields[prop]
-		if !ok {
-			return nil, errors.New("missing field")
-		}
-		return value, nil
 	case *Class:
-		// TODO сделать отдельные замыкания, чтобы на одну функцию замкнуть разные this
 		ctor, ok := left.Constructors[prop]
 		if !ok {
 			return nil, errors.New("missing constructor")
@@ -511,37 +505,26 @@ func (e *Evaluator) property(node *parser.PropertyExpression) (Value, error) {
 			Class:  left,
 			Fields: maps.Clone(left.Fields),
 		}
-		closure := NewEnv(nil)
-		closure.Declare("this", this, false)
-		closured := &Function{
-			FType:      ctor.FType,
-			Parameters: ctor.Parameters,
-			Body:       ctor.Body,
-			Native:     ctor.Native,
-			Closure:    closure,
-		}
 		method := &Method{
-			Function:      closured,
+			Function:      ctor,
 			This:          this,
 			IsConstructor: true,
 		}
 		return method, nil
 	case *Instance:
+		if _, isThis := node.Left.(*parser.ThisLiteral); isThis {
+			value, ok := left.Fields[prop]
+			if !ok {
+				return nil, errors.New("missing field")
+			}
+			return value, nil
+		}
 		fun, ok := left.Class.Methods[prop]
 		if !ok {
 			return nil, errors.New("missing property")
 		}
-		closure := NewEnv(nil)
-		closure.Declare("this", left, false)
-		closured := &Function{
-			FType:      fun.FType,
-			Parameters: fun.Parameters,
-			Body:       fun.Body,
-			Native:     fun.Native,
-			Closure:    closure,
-		}
 		method := &Method{
-			Function:      closured,
+			Function:      fun,
 			This:          left,
 			IsConstructor: false,
 		}
