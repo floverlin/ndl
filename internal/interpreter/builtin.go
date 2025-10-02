@@ -1,6 +1,7 @@
 package interpreter
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"time"
@@ -12,10 +13,44 @@ func LoadBuiltins(env *Env) {
 	for name, builtin := range builtins {
 		fun := &Function{
 			FType:  F_NATIVE,
-			Native: &builtin,
+			Native: builtin,
 		}
 		env.Declare(name, fun, false)
 	}
+	env.Declare("Exception", Exception, false)
+}
+
+// func NewException(message string) Value {
+// 	excp := &Instance{
+// 		Class:  nil,
+// 		Fields: nil,
+// 	}
+// }
+
+var Exception = &Class{
+	Fields: map[string]Value{
+		"message": &Null{},
+	},
+	Constructors: map[string]*Function{
+		"new": {
+			FType: F_NATIVE,
+			Native: func(
+				e *Evaluator,
+				this Value,
+				args ...Value,
+			) (Value, error) {
+				if err := checkArgsLength(1, args); err != nil {
+					return nil, err
+				}
+				message, ok := args[0].(*String)
+				if !ok {
+					return nil, errors.New("expected string")
+				}
+				this.(*Instance).Fields["message"] = message
+				return nil, nil
+			},
+		},
+	},
 }
 
 func LoadKlass(env *Env) {
@@ -25,7 +60,7 @@ func LoadKlass(env *Env) {
 		Methods: map[string]*Function{
 			"clock": {
 				FType:  F_NATIVE,
-				Native: &clock,
+				Native: clock,
 			},
 		},
 		Fields: map[string]Value{
@@ -34,7 +69,7 @@ func LoadKlass(env *Env) {
 		Constructors: map[string]*Function{
 			"new": {
 				FType:  F_NATIVE,
-				Native: &new,
+				Native: new,
 			},
 		},
 	}

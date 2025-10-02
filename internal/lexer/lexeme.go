@@ -90,12 +90,6 @@ const (
 	FINALLY LexemeType = "finally"
 
 	CLASS       LexemeType = "class"
-	CONSTRUCTOR LexemeType = "constructor"
-	GET         LexemeType = "get"
-	SET         LexemeType = "set"
-	INFIX       LexemeType = "infix"
-	PUBLIC      LexemeType = "public"
-	PRIVATE     LexemeType = "private"
 	THIS        LexemeType = "this"
 
 	RETURN   LexemeType = "return"

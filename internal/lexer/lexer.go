@@ -260,6 +260,7 @@ var mono = map[byte]LexemeType{
 	',': COMMA,
 	'=': ASSIGN,
 	'.': DOT,
+	'!': NOT,
 
 	'<': LT,
 	'>': GT,
@@ -280,7 +281,6 @@ var dual = map[string]LexemeType{
 var indentifier = map[string]LexemeType{
 	"or":  OR,
 	"and": AND,
-	"not": NOT,
 
 	"var":   VAR,
 	"const": CONST,
@@ -303,14 +303,8 @@ var indentifier = map[string]LexemeType{
 	"catch":   CATCH,
 	"finally": FINALLY,
 
-	"class":       CLASS,
-	"constructor": CONSTRUCTOR,
-	"get":         GET,
-	"set":         SET,
-	"private":     PRIVATE,
-	"public":      PUBLIC,
-	"infix":       INFIX,
-	"this":        THIS,
+	"class": CLASS,
+	"this":  THIS,
 
 	"return":   RETURN,
 	"break":    BREAK,

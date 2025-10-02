@@ -51,6 +51,8 @@ func (e *Evaluator) Eval(node parser.Node) (Value, error) {
 		return e.if_(node)
 	case *parser.WhileStatement:
 		return e.while(node)
+	case *parser.DoStatement:
+		return e.do(node)
 	case *parser.ExpressionStatement:
 		return e.expression(node)
 	case *parser.AssignmentStatement:
@@ -238,7 +240,7 @@ func (e *Evaluator) while(node *parser.WhileStatement) (Value, error) {
 	}()
 
 	for toBoolean(cond) {
-		if err := e.do(node.Do); err != nil {
+		if err := e.doLoop(node.Do); err != nil {
 			return nil, err
 		}
 		cond, err = e.Eval(node.Condition)
@@ -249,7 +251,32 @@ func (e *Evaluator) while(node *parser.WhileStatement) (Value, error) {
 	return &Null{}, nil
 }
 
-func (e *Evaluator) do(do parser.Statement) (err error) {
+func (e *Evaluator) do(node *parser.DoStatement) (Value, error) {
+	var cond Value = &Boolean{Value: true}
+	var err error
+
+	defer func() {
+		if r := recover(); r != nil {
+			if _, ok := r.(*BreakSignal); ok {
+				return
+			}
+			panic(r)
+		}
+	}()
+
+	for toBoolean(cond) {
+		if err := e.doLoop(node.Do); err != nil {
+			return nil, err
+		}
+		cond, err = e.Eval(node.While)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &Null{}, nil
+}
+
+func (e *Evaluator) doLoop(do parser.Statement) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			if _, ok := r.(*ContinueSignal); ok {
@@ -446,7 +473,7 @@ func (e *Evaluator) callFunction(
 		if argsErr != nil {
 			return nil, argsErr
 		}
-		return (*fun.Native)(e, this, values...)
+		return fun.Native(e, this, values...)
 	}
 
 	// call function

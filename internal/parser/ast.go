@@ -23,7 +23,7 @@ const (
 	OP_GE    Operator = ">="
 	OP_OR    Operator = "or"
 	OP_AND   Operator = "and"
-	OP_NOT   Operator = "not"
+	OP_NOT   Operator = "!"
 )
 
 type Node interface {
@@ -103,6 +103,21 @@ func (ws *WhileStatement) String() string {
 		"while (%s) %s",
 		ws.Condition,
 		ws.Do,
+	)
+}
+
+type DoStatement struct {
+	Do    Statement
+	While Expression
+}
+
+func (ds *DoStatement) Node()      {}
+func (ds *DoStatement) Statement() {}
+func (ds *DoStatement) String() string {
+	return fmt.Sprintf(
+		"do %s while (%s);",
+		ds.Do,
+		ds.While,
 	)
 }
 

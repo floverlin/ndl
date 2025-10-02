@@ -11,7 +11,7 @@
 - If `if (); else;`
 - For `for (;;);` **TODO**
 - While `while ();`
-- Do `do; while();` **TODO**
+- Do `do; while();`
 - Say `say;`
 - Import `import . "module";` **TODO**
 - Export `export value;` **TODO**
@@ -24,7 +24,7 @@
 ### Expressions
 
 - Infix `a + b`
-- Prefix `not a`
+- Prefix `!a`
 - Call `()`
 
 ### Literals
@@ -56,7 +56,7 @@
 
 #### Prefix
 
-- not `not`
+- not `!`
 - plus `+`
 - minus `-`
 

@@ -94,7 +94,7 @@ type Function struct {
 	FType      FType
 	Parameters []string
 	Body       []parser.Statement
-	Native     *NativeFunction
+	Native     NativeFunction
 	Closure    *Env
 }
 
