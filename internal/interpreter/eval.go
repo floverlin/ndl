@@ -3,6 +3,7 @@ package interpreter
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"needle/internal/parser"
 	"needle/internal/pkg"
 )
@@ -71,9 +72,13 @@ func (e *Evaluator) Eval(node parser.Node) (_ Value, err error) {
 		return e.prefix(node)
 	case *parser.CallExpression:
 		return e.call(node)
+	case *parser.PropertyExpression:
+		return e.property(node)
 
 	case *parser.IdentifierLiteral:
 		return e.env.Get(node.Value)
+	case *parser.ThisLiteral:
+		return &This{}, nil
 	case *parser.NullLiteral:
 		return &Null{}, nil
 	case *parser.BooleanLiteral:
@@ -83,17 +88,9 @@ func (e *Evaluator) Eval(node parser.Node) (_ Value, err error) {
 	case *parser.StringLiteral:
 		return &String{Value: node.Value}, nil
 	case *parser.FunctionLiteral:
-		return &Function{
-			FType:   F_FUNCTION,
-			Closure: e.env.Clone(),
-			Body:    node.Body.Statements,
-			Parameters: pkg.SliceMap(
-				node.Parameters,
-				func(e *parser.IdentifierLiteral) string {
-					return e.Value
-				},
-			),
-		}, nil
+		return e.function(node)
+	case *parser.ClassLiteral:
+		return e.class(node)
 	default:
 		return nil, errors.New("TODO")
 	}
@@ -122,6 +119,76 @@ func (e *Evaluator) declaration(node *parser.Declaration) (Value, error) {
 		return nil, err
 	}
 	return &Null{}, nil
+}
+
+func (e *Evaluator) function(node *parser.FunctionLiteral) (Value, error) {
+	params, _ := pkg.SliceMap(
+		node.Parameters,
+		func(e *parser.IdentifierLiteral) (string, error) {
+			return e.Value, nil
+		},
+	)
+	return &Function{
+		FType:      F_FUNCTION,
+		Closure:    e.env.Clone(),
+		Body:       node.Body.Statements,
+		Parameters: params,
+	}, nil
+}
+
+func (e *Evaluator) class(node *parser.ClassLiteral) (Value, error) {
+	class := &Class{}
+	ctors, err := pkg.MapMap(
+		node.Constructors,
+		func(
+			ident *parser.IdentifierLiteral,
+			lit *parser.FunctionLiteral,
+		) (string, *Function, error) {
+			name := ident.Value
+			v, err := e.Eval(lit)
+			if err != nil {
+				return "", nil, err
+			}
+			return name, v.(*Function), nil
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	fields, err := pkg.SliceToMapMap(
+		node.Fields,
+		func(decl *parser.Declaration) (string, Value, error) {
+			val, err := e.Eval(decl.Right)
+			if err != nil {
+				return "", nil, err
+			}
+			return decl.Identifier.Value, val, nil
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	methods, err := pkg.MapMap(
+		node.Public,
+		func(
+			ident *parser.IdentifierLiteral,
+			lit *parser.FunctionLiteral,
+		) (string, *Function, error) {
+			name := ident.Value
+			v, err := e.Eval(lit)
+			if err != nil {
+				return "", nil, err
+			}
+			return name, v.(*Function), nil
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	class.Constructors = ctors
+	class.Fields = fields
+	class.Methods = methods
+	return class, nil
 }
 
 func (e *Evaluator) say(node *parser.SayStatement) (Value, error) {
@@ -211,6 +278,18 @@ func (e *Evaluator) assignment(
 	switch left := node.Left.(type) {
 	case *parser.IdentifierLiteral:
 		err = e.env.Set(left.Value, right)
+	case *parser.PropertyExpression:
+		prop := left.Property.Value
+		_, ok := left.Left.(*parser.ThisLiteral)
+		if !ok {
+			return nil, errors.New("can assign only to this object")
+		}
+		instance, err := e.env.Get("this")
+		if err != nil {
+			return nil, err
+		}
+		instance.(*Instance).Fields[prop] = right
+		return &Null{}, nil
 	default:
 		err = errors.New("can't assign to ???")
 	}
@@ -326,30 +405,54 @@ func (e *Evaluator) infix(node *parser.InfixExpression) (Value, error) {
 
 func (e *Evaluator) call(
 	node *parser.CallExpression,
-) (return_ Value, err error) {
+) (Value, error) {
 	left, err := e.Eval(node.Left)
 	if err != nil {
 		return nil, err
 	}
-	fun, ok := left.(*Function)
-	if !ok {
-		return nil, errors.New("can't call non function")
+	if fun, ok := left.(*Function); ok {
+		return e.callFunction(fun, node.Arguments)
 	}
+	if method, ok := left.(*Method); ok {
+		oldEnv := e.env
+		defer func() { e.env = oldEnv }()
+		e.env = NewEnv(nil)
+		e.env.Declare("this", method.This, false)
+		value, err := e.callFunction(method.Function, node.Arguments)
+		if err != nil {
+			return nil, err
+		}
+		if method.IsConstructor {
+			return method.This, nil
+		}
+		return value, nil
+	}
+	return nil, errors.New("not collable")
+}
+
+func (e *Evaluator) callFunction(
+	fun *Function,
+	args []parser.Expression,
+) (return_ Value, err error) {
+
+	// call native
 	if fun.FType == F_NATIVE {
-		values, argsErr := e.evalExpressions(node.Arguments)
+		values, argsErr := e.evalExpressions(args)
 		if argsErr != nil {
 			return nil, argsErr
 		}
 		return (*fun.Native)(e, values...)
 	}
-	if len(fun.Parameters) != len(node.Arguments) {
+
+	// call function
+	if len(fun.Parameters) != len(args) {
 		return nil, fmt.Errorf(
 			"expected %d arguments, got %d",
 			len(fun.Parameters),
-			len(node.Arguments),
+			len(args),
 		)
 	}
-	values, argsErr := e.evalExpressions(node.Arguments)
+	values, argsErr := e.evalExpressions(args)
 	if argsErr != nil {
 		return nil, argsErr
 	}
@@ -378,6 +481,74 @@ func (e *Evaluator) call(
 	}
 
 	return &Null{}, nil
+}
+
+func (e *Evaluator) property(node *parser.PropertyExpression) (Value, error) {
+	left, err := e.Eval(node.Left)
+	prop := node.Property.Value
+	if err != nil {
+		return nil, err
+	}
+	switch left := left.(type) {
+	case *This:
+		thisValue, err := e.env.Get("this")
+		if err != nil {
+			return nil, errors.New("undefined 'this'")
+		}
+		this := thisValue.(*Instance)
+		value, ok := this.Fields[prop]
+		if !ok {
+			return nil, errors.New("missing field")
+		}
+		return value, nil
+	case *Class:
+		// TODO сделать отдельные замыкания, чтобы на одну функцию замкнуть разные this
+		ctor, ok := left.Constructors[prop]
+		if !ok {
+			return nil, errors.New("missing constructor")
+		}
+		this := &Instance{
+			Class:  left,
+			Fields: maps.Clone(left.Fields),
+		}
+		closure := NewEnv(nil)
+		closure.Declare("this", this, false)
+		closured := &Function{
+			FType:      ctor.FType,
+			Parameters: ctor.Parameters,
+			Body:       ctor.Body,
+			Native:     ctor.Native,
+			Closure:    closure,
+		}
+		method := &Method{
+			Function:      closured,
+			This:          this,
+			IsConstructor: true,
+		}
+		return method, nil
+	case *Instance:
+		fun, ok := left.Class.Methods[prop]
+		if !ok {
+			return nil, errors.New("missing property")
+		}
+		closure := NewEnv(nil)
+		closure.Declare("this", left, false)
+		closured := &Function{
+			FType:      fun.FType,
+			Parameters: fun.Parameters,
+			Body:       fun.Body,
+			Native:     fun.Native,
+			Closure:    closure,
+		}
+		method := &Method{
+			Function:      closured,
+			This:          left,
+			IsConstructor: false,
+		}
+		return method, nil
+	default:
+		return nil, errors.New("can't get property of ???")
+	}
 }
 
 func (e *Evaluator) return_(node *parser.ReturnStatement) (Value, error) {

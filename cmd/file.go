@@ -46,6 +46,7 @@ func RunFile(filePath string) error {
 
 	glob := interpreter.NewEnv(nil)
 	interpreter.LoadBuiltins(glob)
+	interpreter.LoadKlass(glob)
 	ev := interpreter.New(glob)
 	fmt.Println("== Output ==")
 	start := time.Now()

@@ -2,6 +2,7 @@ package interpreter
 
 import (
 	"fmt"
+	"maps"
 	"time"
 )
 
@@ -17,8 +18,42 @@ func LoadBuiltins(env *Env) {
 	}
 }
 
+func LoadKlass(env *Env) {
+	clock := methods["hello"]
+	new := ctors["new"]
+	Klass := &Class{
+		Methods: map[string]*Function{
+			"clock": {
+				FType:  F_NATIVE,
+				Native: &clock,
+			},
+		},
+		Fields: map[string]Value{
+			"name": &String{Value: "Lin"},
+		},
+		Constructors: map[string]*Function{
+			"new": {
+				FType:  F_NATIVE,
+				Native: &new,
+			},
+		},
+	}
+	env.Declare("Klass", Klass, false)
+	klass := &Instance{
+		Class:  Klass,
+		Fields: maps.Clone(Klass.Fields),
+	}
+	env.Declare("klass", klass, false)
+}
+
 var builtins = map[string]NativeFunction{
 	"clock": builtin_clock,
+}
+var methods = map[string]NativeFunction{
+	"hello": builtin_hello,
+}
+var ctors = map[string]NativeFunction{
+	"new": builtin_ctor,
 }
 
 func checkArgsLength(length int, args []Value) error {
@@ -41,4 +76,36 @@ func builtin_clock(e *Evaluator, args ...Value) (Value, error) {
 	}
 	t := float64(time.Now().UnixNano()) / float64(time.Second)
 	return &Number{Value: t}, nil
+}
+
+func builtin_hello(e *Evaluator, args ...Value) (Value, error) {
+	if err := checkArgsLength(0, args); err != nil {
+		return nil, err
+	}
+	this, err := getThis(e.env)
+	if err != nil {
+		return nil, err
+	}
+	name := this.Fields["name"].(*String)
+	fmt.Printf("Hello, %s!\n", name.Value)
+	return &Null{}, nil
+}
+func builtin_ctor(e *Evaluator, args ...Value) (Value, error) {
+	if err := checkArgsLength(1, args); err != nil {
+		return nil, err
+	}
+	this, err := getThis(e.env)
+	if err != nil {
+		return nil, err
+	}
+	this.Fields["name"] = args[0].(*String)
+	return nil, nil
+}
+
+func getThis(env *Env) (*Instance, error) {
+	thisValue, err := env.Get("this")
+	if err != nil {
+		return nil, err
+	}
+	return thisValue.(*Instance), nil
 }

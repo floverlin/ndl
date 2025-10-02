@@ -287,6 +287,21 @@ func (ce *CallExpression) String() string {
 	)
 }
 
+type PropertyExpression struct {
+	Left     Expression
+	Property *IdentifierLiteral
+}
+
+func (pe *PropertyExpression) Node()       {}
+func (pe *PropertyExpression) Expression() {}
+func (pe *PropertyExpression) String() string {
+	return fmt.Sprintf(
+		"%s.%s",
+		pe.Left,
+		pe.Property,
+	)
+}
+
 // == Literals ==
 
 type FunctionLiteral struct {
@@ -360,8 +375,46 @@ type IdentifierLiteral struct {
 	Value string
 }
 
-func (il *IdentifierLiteral) Node()       {}
-func (il *IdentifierLiteral) Expression() {}
-func (il *IdentifierLiteral) String() string {
-	return il.Value
+func (il *IdentifierLiteral) Node()          {}
+func (il *IdentifierLiteral) Expression()    {}
+func (il *IdentifierLiteral) String() string { return il.Value }
+
+type ClassLiteral struct {
+	Constructors map[*IdentifierLiteral]*FunctionLiteral
+	Fields       []*Declaration
+	Public       map[*IdentifierLiteral]*FunctionLiteral
 }
+
+func (cl *ClassLiteral) Node()       {}
+func (cl *ClassLiteral) Expression() {}
+func (cl *ClassLiteral) String() string {
+	var str strings.Builder
+	str.WriteString("class{ ")
+	for _, decl := range cl.Fields {
+		str.WriteString(decl.String() + " ")
+	}
+	for ident, fun := range cl.Constructors {
+		lit := fmt.Sprintf(
+			"constructor %s %s",
+			ident,
+			fun,
+		)
+		str.WriteString(lit + " ")
+	}
+	for ident, fun := range cl.Public {
+		lit := fmt.Sprintf(
+			"public %s %s",
+			ident,
+			fun,
+		)
+		str.WriteString(lit + " ")
+	}
+	str.WriteString("}")
+	return str.String()
+}
+
+type ThisLiteral struct{}
+
+func (tl *ThisLiteral) Node()          {}
+func (tl *ThisLiteral) Expression()    {}
+func (tl *ThisLiteral) String() string { return "this" }

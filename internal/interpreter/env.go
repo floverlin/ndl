@@ -21,6 +21,7 @@ type Env struct {
 	outer *Env
 }
 
+// outer can be nil, but root env must have global outer
 func NewEnv(outer *Env) *Env {
 	return &Env{
 		store: make(map[string]*wrappedValue),

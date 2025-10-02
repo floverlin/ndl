@@ -50,6 +50,13 @@ func (p *Parser) statement(declaration bool) (Statement, error) {
 		switch p.current.Type {
 		case lexer.CONST, lexer.VAR:
 			return p.declaration()
+		case lexer.CLASS:
+			p.advance()
+			if p.match(lexer.IDENTIFIER) {
+				p.back()
+				return p.classDeclaration()
+			}
+			p.back()
 		case lexer.FUN:
 			p.advance()
 			if p.match(lexer.IDENTIFIER) {
@@ -104,6 +111,8 @@ func (p *Parser) statement(declaration bool) (Statement, error) {
 
 func (p *Parser) expression(prec precedence) (expr Expression, err error) {
 	switch p.current.Type {
+	case lexer.CLASS:
+		expr, err = p.class()
 	case lexer.FUN:
 		expr, err = p.fun()
 	case lexer.L_PAREN:
@@ -136,6 +145,8 @@ func (p *Parser) expression(prec precedence) (expr Expression, err error) {
 		expr = &StringLiteral{Value: p.current.Literal}
 	case lexer.IDENTIFIER:
 		expr = &IdentifierLiteral{Value: p.current.Literal}
+	case lexer.THIS:
+		expr = &ThisLiteral{}
 	case lexer.MINUS, lexer.PLUS, lexer.NOT:
 		op := p.current.Literal
 		p.advance()
@@ -164,6 +175,8 @@ func (p *Parser) expression(prec precedence) (expr Expression, err error) {
 			expr, err = p.infixExpression(expr)
 		case lexer.L_PAREN:
 			expr, err = p.callExpression(expr)
+		case lexer.DOT:
+			expr, err = p.propertyExpression(expr)
 		default:
 			err = newParseError(
 				p.current,
@@ -275,6 +288,17 @@ func (p *Parser) callExpression(left Expression) (*CallExpression, error) {
 	return expr, nil
 }
 
+func (p *Parser) propertyExpression(
+	left Expression,
+) (*PropertyExpression, error) {
+	expr := &PropertyExpression{Left: left}
+	if err := p.expect(lexer.IDENTIFIER); err != nil {
+		return nil, err
+	}
+	expr.Property = &IdentifierLiteral{Value: p.current.Literal}
+	return expr, nil
+}
+
 func (p *Parser) infixExpression(left Expression) (*InfixExpression, error) {
 	expr := &InfixExpression{
 		Left:     left,
@@ -366,6 +390,67 @@ func (p *Parser) funDeclaration() (*Declaration, error) {
 	stmt.Right = right
 	stmt.Mutable = false
 	return stmt, nil
+}
+
+func (p *Parser) classDeclaration() (*Declaration, error) {
+	return nil, nil
+
+}
+
+func (p *Parser) class() (*ClassLiteral, error) {
+	lit := &ClassLiteral{
+		Constructors: map[*IdentifierLiteral]*FunctionLiteral{},
+		Public:       map[*IdentifierLiteral]*FunctionLiteral{},
+		Fields:       []*Declaration{},
+	}
+	if err := p.expect(lexer.L_BRACE); err != nil {
+		return nil, err
+	}
+	p.advance()
+	for !p.match(lexer.R_BRACE) {
+		switch p.current.Type {
+		case lexer.VAR, lexer.CONST:
+			decl, err := p.declaration()
+			if err != nil {
+				return nil, err
+			}
+			lit.Fields = append(lit.Fields, decl)
+		case lexer.CONSTRUCTOR:
+			if err := p.expect(lexer.IDENTIFIER); err != nil {
+				return nil, err
+			}
+			name := &IdentifierLiteral{Value: p.current.Literal}
+			fun, err := p.fun()
+			if err != nil {
+				return nil, err
+			}
+			lit.Constructors[name] = fun
+		case lexer.PUBLIC:
+			if err := p.expect(lexer.IDENTIFIER); err != nil {
+				return nil, err
+			}
+			name := &IdentifierLiteral{Value: p.current.Literal}
+			fun, err := p.fun()
+			if err != nil {
+				return nil, err
+			}
+			lit.Public[name] = fun
+		case lexer.GET, lexer.SET:
+			return nil, newParseError(
+				p.current,
+				"TODO",
+			)
+		}
+
+		p.advance()
+		if p.match(lexer.EOF) {
+			return nil, newParseError(
+				p.current,
+				"expected '}'",
+			)
+		}
+	}
+	return lit, nil
 }
 
 func (p *Parser) block() (*Block, error) {

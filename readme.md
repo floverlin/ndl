@@ -145,4 +145,24 @@ class Document {
         return this.name <= other;
     }
 }
+
+class {
+    constructor new() {
+
+    }
+    var a;
+    var b = "Hello!";
+    fun hello() {
+        say b;
+    }
+}.new()
+
+const arr = array{1, 2, 3, 4, [11] = null};
+arr[3]  // 4
+const hi = 123;
+const m = map{
+    ["hello"] = "hello",
+    [hi] = hi,
+};
+
 ```
