@@ -619,40 +619,48 @@ func (p *Parser) tryStatement() (*TryStatement, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := p.expect(lexer.CATCH); err != nil {
-		return nil, err
-	}
-	if err := p.expect(lexer.L_PAREN); err != nil {
-		return nil, err
-	}
-	if err := p.expect(lexer.IDENTIFIER); err != nil {
-		return nil, err
-	}
-	as := &IdentifierLiteral{Value: p.current.Literal}
-	if err := p.expect(lexer.R_PAREN); err != nil {
-		return nil, err
-	}
+	stmt.Try = try
 	p.advance()
-	catch, err := p.statement(false)
-	if err != nil {
-		return nil, err
-	}
-	var finally Statement = newNullStatement()
-	p.advance()
-	if p.match(lexer.FINALLY) {
+	if p.match(lexer.CATCH) {
+		if err := p.expect(lexer.L_PAREN); err != nil {
+			return nil, err
+		}
+		if err := p.expect(lexer.IDENTIFIER); err != nil {
+			return nil, err
+		}
+		stmt.As = &IdentifierLiteral{Value: p.current.Literal}
+		if err := p.expect(lexer.R_PAREN); err != nil {
+			return nil, err
+		}
 		p.advance()
-		fin, err := p.statement(false)
+		catch, err := p.statement(false)
 		if err != nil {
 			return nil, err
 		}
-		finally = fin
+		stmt.Catch = catch
+		if p.matchNext(lexer.FINALLY) {
+			p.advance()
+		}
 	} else {
-		p.back()
+		stmt.As = &IdentifierLiteral{Value: "_"}
+		stmt.Catch = newNullStatement()
+		if !p.match(lexer.FINALLY) {
+			return nil, newParseError(
+				p.current,
+				"expected 'catch' or 'finally'",
+			)
+		}
 	}
-	stmt.Try = try
-	stmt.As = as
-	stmt.Catch = catch
-	stmt.Finally = finally
+	if p.match(lexer.FINALLY) {
+		p.advance()
+		finally, err := p.statement(false)
+		if err != nil {
+			return nil, err
+		}
+		stmt.Finally = finally
+	} else {
+		stmt.Finally = newNullStatement()
+	}
 	return stmt, nil
 }
 
@@ -691,6 +699,13 @@ func (p *Parser) matchLiteral(literal Literal) bool {
 
 func (p *Parser) match(reference lexer.LexemeType) bool {
 	return p.current.Type == reference
+}
+
+func (p *Parser) matchNext(reference lexer.LexemeType) bool {
+	p.advance()
+	result := p.match(reference)
+	p.back()
+	return result
 }
 
 func (p *Parser) back() {

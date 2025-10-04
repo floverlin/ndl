@@ -1,169 +1,142 @@
 # Needle
-n33d<=
 
-## AST
+the n33d<= programming language
+
+## Syntax
+
+```
+program         -> declaration* EOF ;
+```
+
+### Declarations
+
+```
+declaration     -> varDecl
+                 | statement ;
+varDecl         -> "var" IDENTIFIER ( "=" expression )? ";" ;
+```
 
 ### Statements
 
-- Block `{}`
-- Expression `;`
-- Declaration `var` / `const` / `fun`
-- Assignment `=`
-- If `if (); else;`
-- For `for (;;);` **TODO**
-- While `while ();`
-- Do `do; while();`
-- Say `say;`
-- Import `import . "module";` **TODO**
-- Export `export value;` **TODO**
-- Try `try; catch(); finally;`
-- Throw `throw;`
-- Return `return;`
-- Break `break;`
-- Continue `continue;`
+```
+statement       -> exprStmt
+                 | assignStmt
+                 | whileStmt
+                 | ifStmt
+                 | tryStmt
+                 | returnStmt
+                 | breakStmt
+                 | continueStmt
+                 | sayStmt
+                 | block ;
+exprStmt        -> expression ";" ;
+assignStmt      -> ( propExpr | indexExpr | sliceExpr | IDENTIFIER )
+                 "=" expression ";" ;
+whileStmt       -> "while" "(" expression ")" statement ;
+ifStmt          -> "if" "(" expression ")" statement
+                 ( "else" statement )? ;
+tryStmt         -> "try" statement
+                 ( "catch" "(" IDENTIFIER ")" statement )?
+                 ( "finally" statement )? ;
+returnStmt      -> "return" ( expression )? ";" ;
+breakStmt       -> "break" ";" ;
+continueStmt    -> "continue" ";" ;
+sayStmt         -> "say" expression ";" ;
+block           -> "{" declaration* "}" ;
+```
 
 ### Expressions
 
-- Infix `a + b`
-- Prefix `!a`
-- Call `()`
+- left associativity
 
-### Literals
-
-- null `null`
-- boolean `true` / `false`
-- number `12.3`
-- string `"Hello, World!"`
-- function `fun(a, b) { return a + b; }`
+```
+expression      -> prefixExpr
+                 | infixExpr
+                 | indexExpr
+                 | sliceExpr
+                 | callExpr
+                 | propExpr
+                 | group
+                 | literal ;
+prefixExpr      -> prefix_operator expression ;
+infixExpr       -> expression infix_operator expression ;
+indexExpr       -> expression "[" expression "]" ;
+sliceExpr       -> expression "[" expression ":" expression "]" ;
+callExpr        -> expression "(" arguments? ")" ;
+propExpr        -> expression "." IDENTIFIER ;
+group           -> "(" expression ")" ;
+literal         -> "true" | "false" | "null" | "this"
+                 | NUMBER | STRING | IDENTIFIER
+                 | FUNCTION | CLASS | ARRAY | MAP
+```
 
 ### Operators
 
-#### Infix
+```
+prefix_operator -> ( "+" | "-" | "!" ) ;
+infix_operator  -> logic_or
+                 | logic_and
+                 | equality
+                 | comparision
+                 | term
+                 | factor ;
+logic_or        -> "or" ;
+logic_and       -> "and" ;
+equality        -> "==" | "!=" | "===" | "!==" ;
+comparision     -> "<" | ">" | "<=" | ">=" ;
+term            -> "+" | "-" ;
+factor          -> "*" | "/" ;
+```
 
-- plus `+`
-- minus `-`
-- star `*`
-- slash `/`
-- or `or`
-- and `and`
-- eq `==`
-- ne `!=`
-- is `===`
-- isnt `!==`
-- lt `<`
-- le `<=`
-- gt `>`
-- ge `>=`
+### Literals
 
-#### Prefix
+```
+NUMBER          -> DIGIT+ ( "." DIGIT+ )? ;
+STRING          -> "\"" <any char except "\"">* "\"" ;
+IDENTIFIER      -> ALPHA ( ALPHA | DIGIT )*
+                 | "`" ALPHA ( ALPHA | DIGIT )* "`" ;
+ALPHA           -> "a" ... "z" | "A" ... "Z" | "_" ;
+DIGIT           -> "0" ... "9" ;
+FUN             -> "fun" function ;
+CLASS           -> "class" class ;
+ARRAY           -> "array" array ;
+MAP             -> "map" map ;
+```
 
-- not `!`
-- plus `+`
-- minus `-`
+### Utility
+```
+function        -> "(" parameters? ")" block ;
+class           -> "{" class_decl* "}" ;
+array           -> "{" array_decl? "}" ;
+map             -> "{" map_decl? "}" ;
+arguments       -> expression ( "," expression )? ","? ;
+parameters      -> IDENTIFIER ( "," IDENTIFIER )? ","? ;
+class_decl      -> "constructor" IDENTIFIER function
+                 | "public" IDENTIFIER function
+                 | "private" IDENTIFIER function
+                 | "get" ( IDENTIFIER | "." | "[]" | "[:]" ) function
+                 | "set" ( IDENTIFIER | "." | "[]" | "[:]" ) function
+                 | "infix" (IDENTIFIER | term | factor | "==" | "<" | "<=" )
+                 function
+                 | varDecl ;
+array_decl      -> ( expression | "[" expresion "]" "=" expression )
+                 ( "," expression  | "[" expresion "]" "=" expression )* ","? ;
+map_dacl        -> "[" expresion "]" "=" expression
+                 ( "," "[" expresion "]" "=" expression )? ","? ;
+```
 
-## Code
+### Precedence
 
-```typescript
-var a;
-const c = "true";
-
-a = not c;
-
-if (a < 2) {
-    1 + 2;
-} else if (a >= 2) 2 + 4;
-else 2 + 2;
-
-while (a) 2 + 2;
-while (b) {
-    2 + 2;
-}
-
-say 2 + 2;
-
-class Document {
-    var name: String
-    constructor new(name) {
-        this.name= name;
-    }
-
-    get .(attr: String): any {
-        return "Hello";
-    }
-    get name(): any {
-        return "Lin";
-    }
-    get [](index: any): any {
-        if (type_of(index) != "number") throw Error("not number index");
-        return this.list[index];
-    }
-    get [:](start: any, end: any): any {
-        if (type_of(start) != "number" or
-            type_of(end) != "number")
-            throw Error("not number index");
-        return this.list[start:end];
-    }
-
-    set .(attr: String, value: any) {
-        this.dict[attr] = value;
-    }
-    set name(name: any) {
-        this.name = name;
-    }
-    set [](index: any, value: any) {
-        if (type_of(index) != "number") throw Error("not number index");
-        return this.list[index] = value;
-    }
-    set [:](start: any, end: any, value: any): any {
-        if (type_of(start) != "number" or
-            type_of(end) != "number")
-            throw Error("not number index");
-        return this.list[start:end] = value;
-    }
-
-    infix plus(other: any): any {  // document plus "haha";
-        return this.name + other;
-    }
-    infix +(other: any): any {
-        return this.name + other;
-    }
-    infix -(other: any): any {
-        return this.name - other;
-    }
-    infix /(other: any): any {
-        return this.name / other;
-    }
-    infix *(other: any): any {
-        return this.name * other;
-    }
-    infix ==(other: any): any {
-        return this.name == other;
-    }
-    infix <(other: any): any {
-        return this.name < other;
-    }
-    infix <=(other: any): any {
-        return this.name <= other;
-    }
-}
-
-class {
-    constructor new() {
-
-    }
-    var a;
-    var b = "Hello!";
-    fun hello() {
-        say b;
-    }
-}.new()
-
-const arr = array{1, 2, 3, 4, [11] = null};
-arr[3]  // 4
-const hi = 123;
-const m = map{
-    ["hello"] = "hello",
-    [hi] = hi,
-};
-
+```
+-HIGHEST-
+    group
+    call & slice & index & prop
+    factor
+    term
+    comparision
+    equality
+    logic_and
+    logic_or
+    assign
+-LOWER-
 ```

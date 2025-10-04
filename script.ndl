@@ -1,15 +1,2 @@
-class Hi {
-    constructor new() {}
-}
-
-var hi = Hi.new();
-var a = Hi.new();
-// say a == hi;
-say a === hi;
-say class_of(a).new();
-say class_of("");
-
-var str = "asd"
-
-for (i, elem = 0, 0; i < 10; i = i + 1);
-for (i, elem in list);
+array{1, 2, 3, 4, 5, [26] = 12};
+map{["hello"] = "hello"}

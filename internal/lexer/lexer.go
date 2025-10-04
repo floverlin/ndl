@@ -211,7 +211,7 @@ func (lx *Lexer) readString() *Lexeme {
 		if b == eof {
 			return &Lexeme{
 				Type:    ERROR,
-				Literal: str.String(),
+				Literal: "\"" + str.String(),
 				Line:    line,
 				Column:  column,
 			}
@@ -219,7 +219,7 @@ func (lx *Lexer) readString() *Lexeme {
 		if b == '\n' || b == '\r' {
 			return &Lexeme{
 				Type:    ERROR,
-				Literal: str.String(),
+				Literal: "\"" + str.String(),
 				Line:    line,
 				Column:  column,
 			}

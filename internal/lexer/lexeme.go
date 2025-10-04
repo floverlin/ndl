@@ -75,6 +75,7 @@ const (
 	BOOLEAN    LexemeType = "boolean"
 	NUMBER     LexemeType = "number"
 	STRING     LexemeType = "string"
+	CLASS      LexemeType = "class"
 
 	FOR     LexemeType = "for"
 	WHILE   LexemeType = "while"
@@ -89,8 +90,7 @@ const (
 	CATCH   LexemeType = "catch"
 	FINALLY LexemeType = "finally"
 
-	CLASS       LexemeType = "class"
-	THIS        LexemeType = "this"
+	THIS LexemeType = "this"
 
 	RETURN   LexemeType = "return"
 	BREAK    LexemeType = "break"

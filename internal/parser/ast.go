@@ -214,11 +214,12 @@ func (cs *ContinueStatement) String() string {
 	return "continue;"
 }
 
+// have catch or finally or catch and finally
 type TryStatement struct {
 	Try     Statement
-	Catch   Statement
-	As      *IdentifierLiteral
-	Finally Statement
+	Catch   Statement          // optional
+	As      *IdentifierLiteral // optional
+	Finally Statement          // optional
 }
 
 func (ts *TryStatement) Node()      {}
