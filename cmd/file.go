@@ -46,14 +46,14 @@ func RunFile(filePath string) error {
 
 	glob := interpreter.NewEnv(nil)
 	interpreter.LoadBuiltins(glob)
-	interpreter.LoadKlass(glob)
 	ev := interpreter.New(glob)
 	fmt.Println("== Output ==")
 	start := time.Now()
 	err = ev.Run(script)
 	if err != nil {
-		fmt.Printf("runtime error: %s\n", err)
-		return errors.New("runtime error")
+		message := fmt.Sprintf("runtime error: %s\n", err)
+		fmt.Print(message)
+		return errors.New(message)
 	}
 
 	fmt.Println("== Results ==")

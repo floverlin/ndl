@@ -1,0 +1,15 @@
+class Hi {
+    constructor new() {}
+}
+
+var hi = Hi.new();
+var a = Hi.new();
+// say a == hi;
+say a === hi;
+say class_of(a).new();
+say class_of("");
+
+var str = "asd
+asdasdas
+
+asdasdas";
