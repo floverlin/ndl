@@ -1,0 +1,14 @@
+if (false) say "bad";
+if (null) say "bad";
+
+
+if (true) say "good"; //# good
+if (0) say "good"; //# good
+if ("") say "good"; //# good
+
+if (!fun() {}); else {
+    say "good"; //# good
+}
+if (!class{}); else {
+    say "good"; //# good
+}

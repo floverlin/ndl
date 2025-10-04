@@ -1,0 +1,24 @@
+while (false) say "bad";
+while (null) say "bad";
+
+
+while (true) {
+    say "good"; //# good
+    break;
+}
+while (0) {
+    say "good"; //# good
+    break;
+}
+while ("") {
+    say "good"; //# good
+    break;
+}
+while (fun() {}) {
+    say "good"; //# good
+    break;
+}
+while (class{}) {
+    say "good"; //# good
+    break;
+}

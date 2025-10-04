@@ -1,0 +1,22 @@
+say 2 + 3 * 4; //# 14
+
+say 20 - 3 * 4; //# 8
+
+say 2 + 6 / 3; //# 4
+
+say 2 - 6 / 3; //# 0
+
+say false == 2 < 1; //# true
+
+say false == 1 > 2; //# true
+
+say false == 2 <= 1; //# true
+
+say false == 1 >= 2; //# true
+
+say -class{
+    constructor new() {}
+    public length() { return 3; }
+}.new().length(); //# -3
+
+say (2 * (6 - (2 + 2))); //# 4

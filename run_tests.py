@@ -21,7 +21,7 @@ def read_expected(file: pathlib.Path) -> list[str]:
 
 try:
     ok_flag = True
-    for file in pathlib.Path(TEST_FOLDER).rglob("*_test.ndl"):
+    for file in pathlib.Path(TEST_FOLDER).rglob("*.ndl"):
         expected = read_expected(file)
         result = subprocess.run(
             [TEMP_NAME, file],
@@ -38,7 +38,12 @@ try:
             print(file, "-> OK")
         else:
             ok_flag = False
-            print(file, "-> ERROR")
+            if i > len(expected):
+                print(file, f"-> ERROR: want {len(expected)} lines, got {i}")
+                continue
+            for i, line in enumerate(out[start + 1 : end]):
+                if line != expected[i]:
+                    print(file, f"-> ERROR: expected {expected[i]}, got {line}")
 
     print("=" * 16)
     print("OK!" if ok_flag else "ERROR!")

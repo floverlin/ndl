@@ -1,0 +1,4 @@
+if (true) say "good"; else say "bad"; //# good
+if (false) say "bad"; else say "good"; //# good
+
+if (false); else { say "block"; } //# block

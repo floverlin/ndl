@@ -607,13 +607,13 @@ func toBoolean(value Value) bool {
 
 var boolBinOps = map[parser.Operator]binOp{
 	parser.OP_EQ: func(v1, v2 Value) (Value, error) {
-		if v2.Type() != VAL_STRING {
+		if v2.Type() != VAL_BOOLEAN {
 			return &Boolean{Value: false}, nil
 		}
 		return &Boolean{Value: v1.(*Boolean).Value == v2.(*Boolean).Value}, nil
 	},
 	parser.OP_NE: func(v1, v2 Value) (Value, error) {
-		if v2.Type() != VAL_STRING {
+		if v2.Type() != VAL_BOOLEAN {
 			return &Boolean{Value: true}, nil
 		}
 		return &Boolean{Value: v1.(*Boolean).Value != v2.(*Boolean).Value}, nil

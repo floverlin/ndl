@@ -1,0 +1,8 @@
+if (true) say "good"; //# good
+if (false) say "bad";
+
+if (true) { say "block"; } //# block
+
+class Test { constructor new() {} public check() { return true; } }
+const t = Test.new();
+if (t.check()) say t.check(); //# true

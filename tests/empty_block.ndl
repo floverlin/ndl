@@ -1,0 +1,7 @@
+{}
+
+fun() {}();
+
+if (true) {}
+if (false) {} else {}
+

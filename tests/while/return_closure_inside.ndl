@@ -1,0 +1,8 @@
+fun a() {
+    while(true) {
+        const b = "b";
+        return fun() { return b; };
+    }
+}
+
+say a()(); //# b

@@ -2,6 +2,7 @@ package interpreter
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"time"
 )
 
@@ -20,6 +21,7 @@ func LoadBuiltins(env *Env) {
 var builtins = map[string]NativeFunction{
 	"clock":    builtin_clock,
 	"class_of": builtin_class_of,
+	"random":   builtin_random,
 }
 
 func checkArgsLength(length int, args []Value) error {
@@ -52,4 +54,12 @@ func builtin_class_of(e *Evaluator, this Value, args ...Value) (Value, error) {
 		return instance.Class, nil
 	}
 	return &Null{}, nil
+}
+
+func builtin_random(e *Evaluator, this Value, args ...Value) (Value, error) {
+	if err := checkArgsLength(0, args); err != nil {
+		return nil, err
+	}
+	r := rand.Float64()
+	return &Number{Value: r}, nil
 }

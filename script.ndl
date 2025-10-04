@@ -9,7 +9,7 @@ say a === hi;
 say class_of(a).new();
 say class_of("");
 
-var str = "asd
-asdasdas
+var str = "asd"
 
-asdasdas";
+for (i, elem = 0, 0; i < 10; i = i + 1);
+for (i, elem in list);

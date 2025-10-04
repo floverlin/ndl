@@ -1,0 +1,13 @@
+class Test {
+	constructor new() {}
+	public hello(a) { say a; }
+}
+
+const   t   =
+    Test
+    .
+    new
+    (
+    )
+    ;
+t . hello ( "123" ) ; //# 123
