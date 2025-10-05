@@ -1,9 +1,9 @@
-class Test {
+var Test = class{
 	constructor new() {}
 	public hello(a) { say a; }
-}
+};
 
-const   t   =
+var   t   =
     Test
     .
     new

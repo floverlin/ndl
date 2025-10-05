@@ -346,7 +346,6 @@ func (p *Parser) assignmentStatement(left Expression) (*AssignmentStatement, err
 func (p *Parser) declaration() (*Declaration, error) {
 	stmt := &Declaration{}
 	mutable := p.current.Type == lexer.VAR
-	stmt.Mutable = mutable
 	if err := p.expect(lexer.IDENTIFIER); err != nil {
 		return nil, err
 	}
@@ -387,7 +386,6 @@ func (p *Parser) funDeclaration() (*Declaration, error) {
 		return nil, err
 	}
 	stmt.Right = fun
-	stmt.Mutable = false
 	return stmt, nil
 }
 
@@ -400,7 +398,6 @@ func (p *Parser) classDeclaration() (*Declaration, error) {
 		return nil, err
 	}
 	stmt.Right = class
-	stmt.Mutable = false
 	return stmt, nil
 
 }
@@ -746,7 +743,7 @@ const (
 	COMP              // < <= > >=
 	TERM              // + -
 	FACTOR            // * /
-	UN                // - + not
+	UN                // - + !
 	CALL              // . () []
 	HIGHEST
 )
@@ -781,6 +778,10 @@ func newNullStatement() *ExpressionStatement {
 	return &ExpressionStatement{
 		Expression: &NullLiteral{},
 	}
+}
+
+func newBadStatement() *BadStatement {
+	return &BadStatement{}
 }
 
 func newNullExpression() Expression {

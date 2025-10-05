@@ -121,7 +121,7 @@ func (e *Evaluator) declaration(node *parser.Declaration) (Value, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := e.env.Declare(name, value, node.Mutable); err != nil {
+	if err := e.env.Declare(name, value, true); err != nil {
 		return nil, err
 	}
 	return &Null{}, nil

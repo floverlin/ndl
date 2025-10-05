@@ -18,13 +18,13 @@ func RunRepl() error {
 		fmt.Print("> ")
 		source, _ := r.ReadBytes('\n')
 		source = source[:len(source)-1]
-		lx := lexer.New(source)
-		script, err := parser.New(lx).Parse()
-		if err != nil {
-			fmt.Printf("compile error: %s\n", err)
-			continue
-		}
-		if err = ev.Run(script); err != nil {
+		lx := lexer.New([]rune(string(source)))
+		script, _ := parser.New2(lx).Parse()
+		// if err != nil {
+		// 	fmt.Printf("compile error: %s\n", err)
+		// 	continue
+		// }
+		if err := ev.Run(script); err != nil {
 			fmt.Printf("runtime error: %s\n", err)
 			continue
 		}

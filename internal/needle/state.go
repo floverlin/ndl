@@ -40,6 +40,6 @@ func (n *Needle) RunString(source string) error {
 }
 
 func createAST(source []byte) (*parser.Script, error) {
-	lx := lexer.New(source)
+	lx := lexer.New([]rune(string(source)))
 	return parser.New(lx).Parse()
 }

@@ -169,7 +169,7 @@ func (lx *Lexer) readUniversalIdentifier() *Lexeme {
 		if r == '`' {
 			break
 		}
-		if r == eof {
+		if r == eof || r == '\r' || r == '\n' || r == '\t' {
 			return NewLexeme(ERROR, "`"+str.String(), lx.line, column)
 		}
 		str.WriteRune(r)

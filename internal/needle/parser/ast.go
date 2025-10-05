@@ -57,6 +57,12 @@ func (s *Script) String() string {
 
 // == Statements ==
 
+type BadStatement struct{}
+
+func (bs *BadStatement) Node()          {}
+func (bs *BadStatement) Statement()     {}
+func (bs *BadStatement) String() string { return "BAD" }
+
 type Block struct {
 	Statements []Statement
 }
@@ -152,21 +158,13 @@ func (as *AssignmentStatement) String() string {
 type Declaration struct {
 	Identifier *IdentifierLiteral
 	Right      Expression
-	Mutable    bool
 }
 
 func (d *Declaration) Node()      {}
 func (d *Declaration) Statement() {}
 func (d *Declaration) String() string {
-	var modifier string
-	if d.Mutable {
-		modifier = "var"
-	} else {
-		modifier = "const"
-	}
 	return fmt.Sprintf(
-		"%s %s = %s;",
-		modifier,
+		"var %s = %s;",
 		d.Identifier,
 		d.Right,
 	)

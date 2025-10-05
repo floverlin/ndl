@@ -21,7 +21,7 @@ func RunFile(filePath string) error {
 	fmt.Println("== Source ==")
 	fmt.Println(strings.TrimSpace(string(source)))
 
-	lx := lexer.New(source)
+	lx := lexer.New([]rune(string(source)))
 
 	fmt.Println("== Lexemes ==")
 	var lexemes []*lexer.Lexeme
@@ -35,11 +35,13 @@ func RunFile(filePath string) error {
 	lexer.PrintLexemes(lexemes)
 	lx.Reset()
 
-	p := parser.New(lx)
-	script, err := p.Parse()
-	if err != nil {
-		fmt.Printf("parse error: %s\n", err)
-		return errors.New("compile error")
+	p := parser.New2(lx)
+	script, errs := p.Parse()
+	if errs != nil {
+		for _, err := range errs {
+			msg := fmt.Sprintf("parse error: %s\n", err)
+			return errors.New(msg)
+		}
 	}
 	fmt.Println("== AST ==")
 	fmt.Println(strings.TrimSpace(script.String()))

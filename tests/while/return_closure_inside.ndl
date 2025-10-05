@@ -1,8 +1,8 @@
-fun a() {
+var a = fun() {
     while(true) {
-        const b = "b";
+        var b = "b";
         return fun() { return b; };
     }
-}
+};
 
 say a()(); //# b

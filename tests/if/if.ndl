@@ -3,6 +3,6 @@ if (false) say "bad";
 
 if (true) { say "block"; } //# block
 
-class Test { constructor new() {} public check() { return true; } }
-const t = Test.new();
+var Test = class{ constructor new() {} public check() { return true; } };
+var t = Test.new();
 if (t.check()) say t.check(); //# true
