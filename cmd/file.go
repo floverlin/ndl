@@ -35,13 +35,14 @@ func RunFile(filePath string) error {
 	lexer.PrintLexemes(lexemes)
 	lx.Reset()
 
-	p := parser.New2(lx)
+	p := parser.New(lx)
 	script, errs := p.Parse()
 	if errs != nil {
 		for _, err := range errs {
-			msg := fmt.Sprintf("parse error: %s\n", err)
-			return errors.New(msg)
+			fmt.Printf("parse error: %s\n", err)
 		}
+		fmt.Println(script)
+		return errors.New("error")
 	}
 	fmt.Println("== AST ==")
 	fmt.Println(strings.TrimSpace(script.String()))

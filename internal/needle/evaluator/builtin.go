@@ -24,7 +24,7 @@ var builtins = map[string]NativeFunction{
 	"random":   builtin_random,
 }
 
-func checkArgsLength(length int, args []Value) error {
+func CheckArgsLength(length int, args []Value) error {
 	if length < 0 {
 		return nil
 	}
@@ -39,7 +39,7 @@ func checkArgsLength(length int, args []Value) error {
 }
 
 func builtin_clock(e *Evaluator, this Value, args ...Value) (Value, error) {
-	if err := checkArgsLength(0, args); err != nil {
+	if err := CheckArgsLength(0, args); err != nil {
 		return nil, err
 	}
 	t := float64(time.Now().UnixNano()) / float64(time.Second)
@@ -47,7 +47,7 @@ func builtin_clock(e *Evaluator, this Value, args ...Value) (Value, error) {
 }
 
 func builtin_class_of(e *Evaluator, this Value, args ...Value) (Value, error) {
-	if err := checkArgsLength(1, args); err != nil {
+	if err := CheckArgsLength(1, args); err != nil {
 		return nil, err
 	}
 	if instance, ok := args[0].(*Instance); ok {
@@ -57,7 +57,7 @@ func builtin_class_of(e *Evaluator, this Value, args ...Value) (Value, error) {
 }
 
 func builtin_random(e *Evaluator, this Value, args ...Value) (Value, error) {
-	if err := checkArgsLength(0, args); err != nil {
+	if err := CheckArgsLength(0, args); err != nil {
 		return nil, err
 	}
 	r := rand.Float64()

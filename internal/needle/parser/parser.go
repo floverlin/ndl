@@ -1,21 +1,8 @@
 package parser
 
 import (
-	"fmt"
 	"needle/internal/needle/lexer"
-	"needle/internal/pkg"
 	"strconv"
-)
-
-type Literal string
-
-const (
-	LIT_CONSTRUCTOR Literal = "constructor"
-	LIT_GET         Literal = "get"
-	LIT_SET         Literal = "set"
-	LIT_PRIVATE     Literal = "private"
-	LIT_PUBLIC      Literal = "public"
-	LIT_INFIX       Literal = "infix"
 )
 
 type Lexemer interface {
@@ -24,196 +11,429 @@ type Lexemer interface {
 
 type Parser struct {
 	lexemer  Lexemer
-	previous *lexer.Lexeme
 	current  *lexer.Lexeme
-	backpack *pkg.Stack[*lexer.Lexeme]
+	backpack *lexer.Lexeme
+	errors   []error
 }
 
 func New(lexemer Lexemer) *Parser {
 	p := &Parser{
 		lexemer:  lexemer,
-		backpack: pkg.NewStack[*lexer.Lexeme](),
+		backpack: nil,
+		errors:   nil,
 	}
 	p.advance()
 	return p
 }
 
-func (p *Parser) Parse() (*Script, error) {
+func (p *Parser) Parse() (*Script, []error) {
 	script := &Script{
 		Statements: make([]Statement, 0),
 	}
 
-	for !p.match(lexer.EOF) {
-		stmt, err := p.statement(true)
-		if err != nil {
-			return nil, err
-		} else {
-			script.Statements = append(script.Statements, stmt)
+	for !p.check(lexer.EOF) {
+		stmt := p.catch(p.declaration)
+		if stmt == nil {
+			p.synchronize()
+			stmt = newBadStatement()
 		}
+		script.Statements = append(script.Statements, stmt)
 		p.advance()
 	}
 
-	return script, nil
+	return script, p.errors
 }
 
-func (p *Parser) statement(declaration bool) (Statement, error) {
-	if declaration {
-		switch p.current.Type {
-		case lexer.VAR:
-			return p.declaration()
-		case lexer.CLASS:
-			p.advance()
-			if p.match(lexer.IDENTIFIER) {
-				p.back()
-				return p.classDeclaration()
-			}
-			p.back()
-		case lexer.FUN:
-			p.advance()
-			if p.match(lexer.IDENTIFIER) {
-				p.back()
-				return p.funDeclaration()
-			}
-			p.back()
-		}
+func (p *Parser) declaration() Statement {
+	switch p.current.Type {
+	case lexer.VAR:
+		return p.varDecl()
+	default:
+		return p.statement()
 	}
+}
 
+func (p *Parser) statement() Statement {
 	switch p.current.Type {
 	case lexer.SEMICOLON:
-		return newNullStatement(), nil
+		return newNullStatement()
 	case lexer.L_BRACE:
 		return p.block()
 	case lexer.WHILE:
-		return p.whileStatement()
+		return p.whileStmt()
 	case lexer.DO:
-		return p.doStatement()
+		return p.doStmt()
 	case lexer.IF:
-		return p.ifStatement()
+		return p.ifStmt()
 	case lexer.SAY:
-		return p.sayStatement()
-	case lexer.RETURN:
-		return p.returnStatement()
-	case lexer.BREAK:
-		return p.breakStatement()
-	case lexer.CONTINUE:
-		return p.continueStatement()
+		return p.sayStmt()
 	case lexer.TRY:
-		return p.tryStatement()
+		return p.tryStmt()
 	case lexer.THROW:
-		return p.throwStatement()
+		return p.throwtmt()
+	case lexer.RETURN:
+		return p.returnStmt()
+	case lexer.BREAK:
+		p.expect(lexer.SEMICOLON)
+		return &BreakStatement{}
+	case lexer.CONTINUE:
+		p.expect(lexer.SEMICOLON)
+		return &ContinueStatement{}
 	}
 
-	expr, err := p.expression(LOWEST)
-	if err != nil {
-		return nil, err
+	expr := p.expression(LOWEST)
+	if p.peek().Type == lexer.ASSIGN {
+		p.advance()
+		return p.assignStmt(expr)
 	}
 
-	p.advance()
-	if p.match(lexer.ASSIGN) {
-		return p.assignmentStatement(expr)
-	} else if p.match(lexer.SEMICOLON) {
-		return &ExpressionStatement{Expression: expr}, nil
-	}
-
-	return nil, newParseError(
-		p.current,
-		"unexpected '%s'",
-		p.current.Literal,
-	)
+	p.expect(lexer.SEMICOLON)
+	return &ExpressionStatement{Expression: expr}
 }
 
-func (p *Parser) expression(prec precedence) (expr Expression, err error) {
+func (p *Parser) expression(prec precedence) Expression {
+	var expr Expression
 	switch p.current.Type {
-	case lexer.CLASS:
-		expr, err = p.class()
-	case lexer.FUN:
-		expr, err = p.fun()
 	case lexer.L_PAREN:
 		p.advance()
-		if p.match(lexer.R_PAREN) {
-			return nil, newParseError(
+		if p.check(lexer.R_PAREN) {
+			panicParseError(
 				p.current,
 				"unexpected ')'",
 			)
 		}
-		expr, err = p.expression(LOWEST)
-		if err := p.expect(lexer.R_PAREN); err != nil {
-			return nil, err
-		}
+		expr = p.expression(LOWEST)
+		p.expect(lexer.R_PAREN)
+
+	case lexer.CLASS:
+		expr = p.classLit()
+	case lexer.FUN:
+		expr = p.funLit()
+
 	case lexer.NULL:
 		expr = &NullLiteral{}
 	case lexer.BOOLEAN:
-		if val, pErr := strconv.ParseBool(p.current.Literal); pErr != nil {
-			err = pErr // TODO
+		if val, err := strconv.ParseBool(p.current.Literal); err != nil {
+			panic(err)
 		} else {
 			expr = &BooleanLiteral{Value: val}
 		}
 	case lexer.NUMBER:
-		if val, pErr := strconv.ParseFloat(p.current.Literal, 64); pErr != nil {
-			err = pErr // TODO
+		if val, err := strconv.ParseFloat(p.current.Literal, 64); err != nil {
+			panic(err)
 		} else {
 			expr = &NumberLiteral{Value: val}
 		}
 	case lexer.STRING:
 		expr = &StringLiteral{Value: p.current.Literal}
+
 	case lexer.IDENTIFIER:
 		expr = &IdentifierLiteral{Value: p.current.Literal}
 	case lexer.THIS:
 		expr = &ThisLiteral{}
+
 	case lexer.MINUS, lexer.PLUS, lexer.WOW:
 		op := p.current.Literal
 		p.advance()
-		if e, pErr := p.expression(UN); pErr != nil {
-			err = pErr
-		} else {
-			expr = &PrefixExpression{Right: e, Operator: op}
-		}
+		e := p.expression(UN)
+		expr = &PrefixExpression{Right: e, Operator: op}
 	default:
-		err = newParseError(
+		panicParseError(
 			p.current,
 			"unexpected '%s'",
 			p.current.Literal,
 		)
 	}
-	if err != nil {
-		return
-	}
 
-	for prec < p.nextPrecedence() {
+	for prec < p.peekPrecedence() {
 		p.advance()
 		switch p.current.Type {
 		case lexer.PLUS, lexer.MINUS, lexer.STAR, lexer.SLASH,
 			lexer.LT, lexer.LE, lexer.GT, lexer.GE, lexer.EQ, lexer.NE,
 			lexer.AND, lexer.OR, lexer.IS, lexer.ISNT:
-			expr, err = p.infixExpression(expr)
+			expr = p.infixExpr(expr)
 		case lexer.L_PAREN:
-			expr, err = p.callExpression(expr)
+			expr = p.callExpr(expr)
 		case lexer.DOT:
-			expr, err = p.propertyExpression(expr)
+			expr = p.propExpr(expr)
 		default:
-			err = newParseError(
+			panicParseError(
 				p.current,
 				"unexpected '%s'",
 				p.current.Literal,
 			)
 		}
-		if err != nil {
-			return
+	}
+
+	return expr
+}
+
+/* == declarations ===========================================================*/
+
+func (p *Parser) varDecl() *Declaration {
+	stmt := &Declaration{}
+
+	p.expect(lexer.IDENTIFIER)
+	stmt.Identifier = &IdentifierLiteral{Value: p.current.Literal}
+
+	p.advance()
+	if p.check(lexer.SEMICOLON) {
+		stmt.Right = newNullExpression()
+		return stmt
+	} else if p.check(lexer.ASSIGN) {
+		p.advance()
+		stmt.Right = p.expression(LOWEST)
+		p.expect(lexer.SEMICOLON)
+		return stmt
+	}
+	panicParseError(
+		p.current,
+		"expected ';' or '='",
+	)
+	return nil
+}
+
+/* == stmt ===================================================================*/
+
+func (p *Parser) block() *Block {
+	block := &Block{
+		Statements: make([]Statement, 0),
+	}
+
+	p.advance()
+	for !p.check(lexer.R_BRACE) {
+		stmt := p.catch(p.declaration)
+		if stmt == nil {
+			p.synchronize()
+			stmt = newBadStatement()
+		}
+		block.Statements = append(block.Statements, stmt)
+		p.advance()
+		if p.check(lexer.EOF) {
+			panicParseError(
+				p.current,
+				"expected '}'",
+			)
 		}
 	}
 
-	return
+	return block
 }
 
-func (p *Parser) parameters() ([]*IdentifierLiteral, error) {
-	params := []*IdentifierLiteral{}
+func (p *Parser) whileStmt() *WhileStatement {
+	stmt := &WhileStatement{}
+	p.expect(lexer.L_PAREN)
 	p.advance()
-	if p.match(lexer.R_PAREN) {
-		return params, nil
+	stmt.Condition = p.expression(LOWEST)
+	p.expect(lexer.R_PAREN)
+	p.advance()
+	stmt.Do = p.statement()
+	return stmt
+}
+
+func (p *Parser) doStmt() *DoStatement {
+	stmt := &DoStatement{}
+	p.advance()
+	stmt.Do = p.statement()
+	p.expect(lexer.WHILE)
+	p.expect(lexer.L_PAREN)
+	p.advance()
+	stmt.While = p.expression(LOWEST)
+	p.expect(lexer.R_PAREN)
+	p.expect(lexer.SEMICOLON)
+	return stmt
+}
+
+func (p *Parser) ifStmt() *IfStatement {
+	stmt := &IfStatement{}
+	p.expect(lexer.L_PAREN)
+	p.advance()
+	stmt.Condition = p.expression(LOWEST)
+	p.expect(lexer.R_PAREN)
+	p.advance()
+	stmt.Then = p.statement()
+	if p.peek().Type == lexer.ELSE {
+		p.advance()
+		p.advance()
+		stmt.Else = p.statement()
+	} else {
+		stmt.Else = newNullStatement()
+	}
+	return stmt
+}
+
+func (p *Parser) sayStmt() *SayStatement {
+	stmt := &SayStatement{}
+	p.advance()
+	stmt.Expression = p.expression(LOWEST)
+	p.expect(lexer.SEMICOLON)
+	return stmt
+}
+
+func (p *Parser) tryStmt() *TryStatement {
+	stmt := &TryStatement{}
+	ended := false
+	p.advance()
+	stmt.Try = p.statement()
+	if p.peek().Type == lexer.CATCH {
+		p.advance()
+		p.expect(lexer.L_PAREN)
+		p.expect(lexer.IDENTIFIER)
+		stmt.As = &IdentifierLiteral{Value: p.current.Literal}
+		p.expect(lexer.R_PAREN)
+		p.advance()
+		stmt.Catch = p.statement()
+		ended = true
+	} else {
+		stmt.As = &IdentifierLiteral{Value: "_"}
+		stmt.Catch = newNullStatement()
+	}
+	if p.peek().Type == lexer.FINALLY {
+		p.advance()
+		p.advance()
+		stmt.Finally = p.statement()
+		ended = true
+	} else {
+		stmt.Finally = newNullStatement()
+	}
+	if !ended {
+		panicParseError(
+			p.current,
+			"expected 'catch' or 'finally'",
+		)
+	}
+	return stmt
+}
+
+func (p *Parser) throwtmt() *ThrowStatement {
+	stmt := &ThrowStatement{}
+	p.advance()
+	stmt.Error = p.expression(LOWEST)
+	p.expect(lexer.SEMICOLON)
+	return stmt
+}
+
+func (p *Parser) returnStmt() *ReturnStatement {
+	stmt := &ReturnStatement{}
+	p.advance()
+	stmt.Value = p.expression(LOWEST)
+	p.expect(lexer.SEMICOLON)
+	return stmt
+}
+
+func (p *Parser) assignStmt(left Expression) *AssignmentStatement {
+	stmt := &AssignmentStatement{Left: left}
+	p.advance()
+	stmt.Right = p.expression(LOWEST)
+	p.expect(lexer.SEMICOLON)
+	return stmt
+}
+
+/* == expr ===================================================================*/
+
+func (p *Parser) classLit() *ClassLiteral {
+	lit := &ClassLiteral{
+		Constructors: map[*IdentifierLiteral]*FunctionLiteral{},
+		Public:       map[*IdentifierLiteral]*FunctionLiteral{},
+		Fields:       []*Declaration{},
+	}
+	p.expect(lexer.L_BRACE)
+	p.advance()
+	for !p.check(lexer.R_BRACE) {
+		if p.current.Type == lexer.VAR {
+			decl := p.varDecl()
+			lit.Fields = append(lit.Fields, decl)
+		} else if p.current.Literal == LIT_CONSTRUCTOR {
+			p.expect(lexer.IDENTIFIER)
+			name := &IdentifierLiteral{Value: p.current.Literal}
+			lit.Constructors[name] = p.funLit()
+		} else if p.current.Literal == LIT_PUBLIC {
+			p.expect(lexer.IDENTIFIER)
+			name := &IdentifierLiteral{Value: p.current.Literal}
+			lit.Public[name] = p.funLit()
+		}
+		p.advance()
+		if p.check(lexer.EOF) {
+			panicParseError(
+				p.current,
+				"expected '}'",
+			)
+		}
+	}
+	return lit
+}
+
+func (p *Parser) funLit() *FunctionLiteral {
+	lit := &FunctionLiteral{}
+	p.expect(lexer.L_PAREN)
+	lit.Parameters = p.parameters()
+	p.expect(lexer.L_BRACE)
+	lit.Body = p.block()
+	return lit
+}
+
+func (p *Parser) infixExpr(left Expression) *InfixExpression {
+	expr := &InfixExpression{
+		Left:     left,
+		Operator: p.current.Literal,
+	}
+	prec := p.currentPrecedence()
+	p.advance()
+	expr.Right = p.expression(prec)
+	return expr
+}
+
+func (p *Parser) callExpr(left Expression) *CallExpression {
+	expr := &CallExpression{Left: left}
+	expr.Arguments = p.arguments()
+	return expr
+}
+
+func (p *Parser) propExpr(left Expression) *PropertyExpression {
+	expr := &PropertyExpression{Left: left}
+	p.expect(lexer.IDENTIFIER)
+	expr.Property = &IdentifierLiteral{Value: p.current.Literal}
+	return expr
+}
+
+/* == parse utility ==========================================================*/
+
+func (p *Parser) arguments() []Expression {
+	args := []Expression{}
+	p.advance()
+	if p.check(lexer.R_PAREN) {
+		return args
 	}
 	for {
-		if !p.match(lexer.IDENTIFIER) {
-			return nil, newParseError(
+		expr := p.expression(LOWEST)
+		args = append(args, expr)
+		p.advance()
+		if p.check(lexer.R_PAREN) {
+			break
+		}
+		if !p.check(lexer.COMMA) {
+			panicParseError(
+				p.current,
+				"expected ',' or ')'",
+			)
+		}
+		p.advance()
+		if p.check(lexer.R_PAREN) {
+			break
+		}
+	}
+	return args
+}
+
+func (p *Parser) parameters() []*IdentifierLiteral {
+	params := []*IdentifierLiteral{}
+	p.advance()
+	if p.check(lexer.R_PAREN) {
+		return params
+	}
+	for {
+		if !p.check(lexer.IDENTIFIER) {
+			panicParseError(
 				p.current,
 				"expected 'identifier'",
 			)
@@ -223,515 +443,117 @@ func (p *Parser) parameters() ([]*IdentifierLiteral, error) {
 			&IdentifierLiteral{Value: p.current.Literal},
 		)
 		p.advance()
-		if p.match(lexer.R_PAREN) {
+		if p.check(lexer.R_PAREN) {
 			break
 		}
-		if !p.match(lexer.COMMA) {
-			return nil, newParseError(
+		if !p.check(lexer.COMMA) {
+			panicParseError(
 				p.current,
 				"expected ',' or ')'",
 			)
 		}
 		p.advance()
-		if p.match(lexer.R_PAREN) {
+		if p.check(lexer.R_PAREN) {
 			break
 		}
 	}
-	return params, nil
+	return params
 }
 
-func (p *Parser) arguments() ([]Expression, error) {
-	args := []Expression{}
-	p.advance()
-	if p.match(lexer.R_PAREN) {
-		return args, nil
-	}
-	for {
-		expr, err := p.expression(LOWEST)
-		if err != nil {
-			return nil, err
-		}
-		args = append(args, expr)
-		p.advance()
-		if p.match(lexer.R_PAREN) {
-			break
-		}
-		if !p.match(lexer.COMMA) {
-			return nil, newParseError(
-				p.current,
-				"expected ',' or ')'",
-			)
-		}
-		p.advance()
-		if p.match(lexer.R_PAREN) {
-			break
-		}
-	}
-	return args, nil
-}
-
-func (p *Parser) fun() (*FunctionLiteral, error) {
-	lit := &FunctionLiteral{}
-	if err := p.expect(lexer.L_PAREN); err != nil {
-		return nil, err
-	}
-	params, err := p.parameters()
-	if err != nil {
-		return nil, err
-	}
-	lit.Parameters = params
-	if err := p.expect(lexer.L_BRACE); err != nil {
-		return nil, err
-	}
-	block, err := p.block()
-	if err != nil {
-		return nil, err
-	}
-	lit.Body = block
-	return lit, nil
-}
-
-func (p *Parser) callExpression(left Expression) (*CallExpression, error) {
-	expr := &CallExpression{Left: left}
-	args, err := p.arguments()
-	if err != nil {
-		return nil, err
-	}
-	expr.Arguments = args
-	return expr, nil
-}
-
-func (p *Parser) propertyExpression(
-	left Expression,
-) (*PropertyExpression, error) {
-	expr := &PropertyExpression{Left: left}
-	if err := p.expect(lexer.IDENTIFIER); err != nil {
-		return nil, err
-	}
-	expr.Property = &IdentifierLiteral{Value: p.current.Literal}
-	return expr, nil
-}
-
-func (p *Parser) infixExpression(left Expression) (*InfixExpression, error) {
-	expr := &InfixExpression{
-		Left:     left,
-		Operator: p.current.Literal,
-	}
-	prec := p.currentPrecedence()
-	p.advance()
-	e, err := p.expression(prec)
-	if err != nil {
-		return nil, err
-	}
-	expr.Right = e
-	return expr, nil
-}
-
-func (p *Parser) assignmentStatement(left Expression) (*AssignmentStatement, error) {
-	stmt := &AssignmentStatement{
-		Left: left,
-	}
-	p.advance()
-	right, err := p.expression(LOWEST)
-	if err != nil {
-		return nil, err
-	}
-	stmt.Right = right
-	if err := p.expect(lexer.SEMICOLON); err != nil {
-		return nil, err
-	}
-	return stmt, nil
-}
-
-func (p *Parser) declaration() (*Declaration, error) {
-	stmt := &Declaration{}
-	mutable := p.current.Type == lexer.VAR
-	if err := p.expect(lexer.IDENTIFIER); err != nil {
-		return nil, err
-	}
-	stmt.Identifier = &IdentifierLiteral{Value: p.current.Literal}
-	p.advance()
-	if p.match(lexer.SEMICOLON) {
-		if !mutable {
-			return nil, newParseError(p.current, "expected '='")
-		}
-		stmt.Right = newNullExpression()
-	} else if p.match(lexer.ASSIGN) {
-		p.advance()
-		right, err := p.expression(LOWEST)
-		if err != nil {
-			return nil, err
-		}
-		stmt.Right = right
-		p.advance()
-	} else {
-		if mutable {
-			return nil, newParseError(p.current, "expected ';' or '='")
-		}
-		return nil, newParseError(p.current, "expected '='")
-	}
-	if !p.match(lexer.SEMICOLON) {
-		return nil, newParseError(p.current, "expected ';'")
-	}
-
-	return stmt, nil
-}
-
-func (p *Parser) funDeclaration() (*Declaration, error) {
-	stmt := &Declaration{}
-	p.advance()
-	stmt.Identifier = &IdentifierLiteral{Value: p.current.Literal}
-	fun, err := p.fun()
-	if err != nil {
-		return nil, err
-	}
-	stmt.Right = fun
-	return stmt, nil
-}
-
-func (p *Parser) classDeclaration() (*Declaration, error) {
-	stmt := &Declaration{}
-	p.advance()
-	stmt.Identifier = &IdentifierLiteral{Value: p.current.Literal}
-	class, err := p.class()
-	if err != nil {
-		return nil, err
-	}
-	stmt.Right = class
-	return stmt, nil
-
-}
-
-func (p *Parser) class() (*ClassLiteral, error) {
-	lit := &ClassLiteral{
-		Constructors: map[*IdentifierLiteral]*FunctionLiteral{},
-		Public:       map[*IdentifierLiteral]*FunctionLiteral{},
-		Fields:       []*Declaration{},
-	}
-	if err := p.expect(lexer.L_BRACE); err != nil {
-		return nil, err
-	}
-	p.advance()
-	for !p.match(lexer.R_BRACE) {
-		if p.current.Type == lexer.VAR {
-			decl, err := p.declaration()
-			if err != nil {
-				return nil, err
-			}
-			lit.Fields = append(lit.Fields, decl)
-		} else if p.matchLiteral(LIT_CONSTRUCTOR) {
-			if err := p.expect(lexer.IDENTIFIER); err != nil {
-				return nil, err
-			}
-			name := &IdentifierLiteral{Value: p.current.Literal}
-			fun, err := p.fun()
-			if err != nil {
-				return nil, err
-			}
-			lit.Constructors[name] = fun
-		} else if p.matchLiteral(LIT_PUBLIC) {
-			if err := p.expect(lexer.IDENTIFIER); err != nil {
-				return nil, err
-			}
-			name := &IdentifierLiteral{Value: p.current.Literal}
-			fun, err := p.fun()
-			if err != nil {
-				return nil, err
-			}
-			lit.Public[name] = fun
-		}
-
-		p.advance()
-		if p.match(lexer.EOF) {
-			return nil, newParseError(
-				p.current,
-				"expected '}'",
-			)
-		}
-	}
-	return lit, nil
-}
-
-func (p *Parser) block() (*Block, error) {
-	block := &Block{Statements: make([]Statement, 0)}
-	p.advance()
-	for !p.match(lexer.R_BRACE) {
-		stmt, err := p.statement(true)
-		if err != nil {
-			return nil, err
-		} else {
-			block.Statements = append(block.Statements, stmt)
-		}
-		p.advance()
-		if p.match(lexer.EOF) {
-			return nil, newParseError(p.current, "expected '}'")
-		}
-	}
-	return block, nil
-}
-
-func (p *Parser) ifStatement() (*IfStatement, error) {
-	stmt := &IfStatement{}
-	if err := p.expect(lexer.L_PAREN); err != nil {
-		return nil, err
-	}
-	p.advance()
-	cond, err := p.expression(LOWEST)
-	if err != nil {
-		return nil, err
-	}
-	stmt.Condition = cond
-	if err := p.expect(lexer.R_PAREN); err != nil {
-		return nil, err
-	}
-	p.advance()
-	then, err := p.statement(false)
-	if err != nil {
-		return nil, err
-	}
-	stmt.Then = then
-	p.advance()
-	if p.match(lexer.ELSE) {
-		p.advance()
-		else_, err := p.statement(false)
-		if err != nil {
-			return nil, err
-		}
-		stmt.Else = else_
-	} else {
-		p.back()
-		stmt.Else = newNullStatement()
-	}
-	return stmt, nil
-}
-
-func (p *Parser) sayStatement() (*SayStatement, error) {
-	stmt := &SayStatement{}
-	p.advance()
-	if p.match(lexer.SEMICOLON) {
-		stmt.Expression = newNullExpression()
-		return stmt, nil
-	}
-	expr, err := p.expression(LOWEST)
-	if err != nil {
-		return nil, err
-	}
-	stmt.Expression = expr
-	if err := p.expect(lexer.SEMICOLON); err != nil {
-		return nil, err
-	}
-	return stmt, nil
-}
-
-func (p *Parser) whileStatement() (*WhileStatement, error) {
-	stmt := &WhileStatement{}
-	if err := p.expect(lexer.L_PAREN); err != nil {
-		return nil, err
-	}
-	p.advance()
-	cond, err := p.expression(LOWEST)
-	if err != nil {
-		return nil, err
-	}
-	stmt.Condition = cond
-	if err := p.expect(lexer.R_PAREN); err != nil {
-		return nil, err
-	}
-	p.advance()
-	do, err := p.statement(false)
-	if err != nil {
-		return nil, err
-	}
-	stmt.Do = do
-	return stmt, nil
-}
-
-func (p *Parser) doStatement() (*DoStatement, error) {
-	stmt := &DoStatement{}
-	p.advance()
-	do, err := p.statement(false)
-	if err != nil {
-		return nil, err
-	}
-	if err := p.expect(lexer.WHILE); err != nil {
-		return nil, err
-	}
-	if err := p.expect(lexer.L_PAREN); err != nil {
-		return nil, err
-	}
-	p.advance()
-	while, err := p.expression(LOWEST)
-	if err != nil {
-		return nil, err
-	}
-	if err := p.expect(lexer.R_PAREN); err != nil {
-		return nil, err
-	}
-	if err := p.expect(lexer.SEMICOLON); err != nil {
-		return nil, err
-	}
-	stmt.While = while
-	stmt.Do = do
-	return stmt, nil
-}
-
-func (p *Parser) returnStatement() (*ReturnStatement, error) {
-	stmt := &ReturnStatement{}
-	p.advance()
-	if p.match(lexer.SEMICOLON) {
-		stmt.Value = newNullExpression()
-		return stmt, nil
-	}
-	expr, err := p.expression(LOWEST)
-	if err != nil {
-		return nil, err
-	}
-	stmt.Value = expr
-	if err := p.expect(lexer.SEMICOLON); err != nil {
-		return nil, err
-	}
-	return stmt, nil
-}
-
-func (p *Parser) breakStatement() (*BreakStatement, error) {
-	stmt := &BreakStatement{}
-	if err := p.expect(lexer.SEMICOLON); err != nil {
-		return nil, err
-	}
-	return stmt, nil
-}
-
-func (p *Parser) continueStatement() (*ContinueStatement, error) {
-	stmt := &ContinueStatement{}
-	if err := p.expect(lexer.SEMICOLON); err != nil {
-		return nil, err
-	}
-	return stmt, nil
-}
-
-func (p *Parser) tryStatement() (*TryStatement, error) {
-	stmt := &TryStatement{}
-	p.advance()
-	try, err := p.statement(false)
-	if err != nil {
-		return nil, err
-	}
-	stmt.Try = try
-	p.advance()
-	if p.match(lexer.CATCH) {
-		if err := p.expect(lexer.L_PAREN); err != nil {
-			return nil, err
-		}
-		if err := p.expect(lexer.IDENTIFIER); err != nil {
-			return nil, err
-		}
-		stmt.As = &IdentifierLiteral{Value: p.current.Literal}
-		if err := p.expect(lexer.R_PAREN); err != nil {
-			return nil, err
-		}
-		p.advance()
-		catch, err := p.statement(false)
-		if err != nil {
-			return nil, err
-		}
-		stmt.Catch = catch
-		if p.matchNext(lexer.FINALLY) {
-			p.advance()
-		}
-	} else {
-		stmt.As = &IdentifierLiteral{Value: "_"}
-		stmt.Catch = newNullStatement()
-		if !p.match(lexer.FINALLY) {
-			return nil, newParseError(
-				p.current,
-				"expected 'catch' or 'finally'",
-			)
-		}
-	}
-	if p.match(lexer.FINALLY) {
-		p.advance()
-		finally, err := p.statement(false)
-		if err != nil {
-			return nil, err
-		}
-		stmt.Finally = finally
-	} else {
-		stmt.Finally = newNullStatement()
-	}
-	return stmt, nil
-}
-
-func (p *Parser) throwStatement() (*ThrowStatement, error) {
-	stmt := &ThrowStatement{}
-	p.advance()
-	errValue, err := p.expression(LOWEST)
-	if err != nil {
-		return nil, err
-	}
-	if err := p.expect(lexer.SEMICOLON); err != nil {
-		return nil, err
-	}
-	stmt.Error = errValue
-	return stmt, nil
-}
-
-/* == Helpers =============================================================== */
-
-func (p *Parser) expect(
-	type_ lexer.LexemeType,
-	args ...any,
-) error {
-	p.advance()
-	if p.match(type_) {
-		return nil
-	}
-	args = append([]any{type_}, args...)
-	return newParseError(p.current, "expected '%s'", args...)
-}
-
-func (p *Parser) matchLiteral(literal Literal) bool {
-	return p.current.Type == lexer.IDENTIFIER &&
-		Literal(p.current.Literal) == literal
-}
-
-func (p *Parser) match(reference lexer.LexemeType) bool {
-	return p.current.Type == reference
-}
-
-func (p *Parser) matchNext(reference lexer.LexemeType) bool {
-	p.advance()
-	result := p.match(reference)
-	p.back()
-	return result
-}
-
-func (p *Parser) back() {
-	if p.previous == nil {
-		panic("double back")
-	}
-	p.backpack.Push(p.current)
-	p.current = p.previous
-}
-
-func (p *Parser) advance() {
-	p.previous = p.current
-	if l, err := p.backpack.Pop(); err == nil {
-		p.current = l
-		return
-	}
-	p.current = p.lexemer.NextLexeme()
-}
+/* == utility =============================================================== */
 
 func (p *Parser) currentPrecedence() precedence {
 	return precedences[p.current.Type]
 }
 
-func (p *Parser) nextPrecedence() precedence {
-	p.advance()
-	prec := precedences[p.current.Type]
-	p.back()
-	return prec
+func (p *Parser) peekPrecedence() precedence {
+	return precedences[p.peek().Type]
 }
+
+func (p *Parser) catch(f func() Statement) (result Statement) {
+	defer func() {
+		if pa := recover(); pa != nil {
+			if pErr, ok := pa.(*parseError); ok {
+				p.errors = append(p.errors, pErr.Error)
+				result = nil
+				return
+			}
+			panic(pa)
+		}
+	}()
+	return f()
+}
+
+func (p *Parser) synchronize() {
+	for !p.check(lexer.EOF) {
+		if p.check(lexer.SEMICOLON) || p.check(lexer.R_BRACE) {
+			return
+		}
+		switch p.peek().Type {
+		case lexer.L_BRACE, lexer.VAR, lexer.WHILE, lexer.DO,
+			lexer.SAY, lexer.IF, lexer.RETURN,
+			lexer.BREAK, lexer.CONTINUE, lexer.TRY:
+			return
+		}
+		p.advance()
+	}
+}
+
+// checks next token and stands on it
+func (p *Parser) expect(type_ lexer.LexemeType) {
+	p.advance()
+	if type_ == p.current.Type {
+		return
+	}
+	panicParseError(p.current, "expected '%s'", type_)
+}
+
+// checks current token and jumps on next
+func (p *Parser) consume(type_ lexer.LexemeType) {
+	if type_ == p.current.Type {
+		p.advance()
+		return
+	}
+	panicParseError(p.current, "expected '%s'", type_)
+}
+
+func (p *Parser) check(t lexer.LexemeType) bool {
+	return p.current.Type == t
+}
+
+func (p *Parser) peek() *lexer.Lexeme {
+	temp := p.current
+	p.advance()
+	lxm := p.current
+	p.current = temp
+	p.backpack = lxm
+	return lxm
+}
+
+func (p *Parser) advance() {
+	if p.backpack != nil {
+		p.current = p.backpack
+		p.backpack = nil
+		return
+	}
+	next := p.lexemer.NextLexeme()
+	if next.Type == lexer.ERROR {
+		panicParseError(
+			next,
+			"wrong lexeme",
+		)
+	}
+	p.current = next
+}
+
+const (
+	LIT_CONSTRUCTOR = "constructor"
+	LIT_GET         = "get"
+	LIT_SET         = "set"
+	LIT_PRIVATE     = "private"
+	LIT_PUBLIC      = "public"
+	LIT_INFIX       = "infix"
+)
 
 type precedence uint8
 
@@ -786,14 +608,4 @@ func newBadStatement() *BadStatement {
 
 func newNullExpression() Expression {
 	return &NullLiteral{}
-}
-
-func newParseError(at *lexer.Lexeme, message string, args ...any) error {
-	message = fmt.Sprintf(message, args...)
-	return fmt.Errorf(
-		"%s at line %d, column %d",
-		message,
-		at.Line,
-		at.Column,
-	)
 }

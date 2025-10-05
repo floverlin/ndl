@@ -1,6 +1,14 @@
-Lexer (check)
-Lexer_test
-Придумать систему парсера
-Доуточнить синтаксис + дописать парсинг
-Все новое добавить в эвалуатор
-Поведение встроенных классов
+lexer (check)
+lexer_test
+new parser system (check)
+new parser (check)
+parser_test
+full parser
+full evaluator
+builtin classes
+imports / exports
+api
+full tests
+cli
+
+bytecode vm?

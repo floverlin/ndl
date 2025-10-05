@@ -13,17 +13,21 @@ const (
 	OP_MINUS Operator = "-"
 	OP_STAR  Operator = "*"
 	OP_SLASH Operator = "/"
-	OP_EQ    Operator = "=="
-	OP_NE    Operator = "!="
-	OP_IS    Operator = "==="
-	OP_ISNT  Operator = "!=="
-	OP_LT    Operator = "<"
-	OP_LE    Operator = "<="
-	OP_GT    Operator = ">"
-	OP_GE    Operator = ">="
-	OP_OR    Operator = "or"
-	OP_AND   Operator = "and"
-	OP_NOT   Operator = "!"
+
+	OP_EQ   Operator = "=="
+	OP_NE   Operator = "!="
+	OP_IS   Operator = "==="
+	OP_ISNT Operator = "!=="
+
+	OP_LT Operator = "<"
+	OP_LE Operator = "<="
+	OP_GT Operator = ">"
+	OP_GE Operator = ">="
+
+	OP_OR  Operator = "or"
+	OP_AND Operator = "and"
+
+	OP_NOT Operator = "!"
 )
 
 type Node interface {
@@ -55,13 +59,13 @@ func (s *Script) String() string {
 	return str.String()
 }
 
-// == Statements ==
+/* == statements =============================================================*/
 
 type BadStatement struct{}
 
 func (bs *BadStatement) Node()          {}
 func (bs *BadStatement) Statement()     {}
-func (bs *BadStatement) String() string { return "BAD" }
+func (bs *BadStatement) String() string { return "__bad_statement" }
 
 type Block struct {
 	Statements []Statement
@@ -212,12 +216,11 @@ func (cs *ContinueStatement) String() string {
 	return "continue;"
 }
 
-// have catch or finally or catch and finally
 type TryStatement struct {
 	Try     Statement
-	Catch   Statement          // optional
-	As      *IdentifierLiteral // optional
-	Finally Statement          // optional
+	Catch   Statement
+	As      *IdentifierLiteral
+	Finally Statement
 }
 
 func (ts *TryStatement) Node()      {}
@@ -245,7 +248,7 @@ func (ts *ThrowStatement) String() string {
 	)
 }
 
-// == Expression ==
+/* == expression =============================================================*/
 
 type InfixExpression struct {
 	Left     Expression
@@ -316,30 +319,7 @@ func (pe *PropertyExpression) String() string {
 	)
 }
 
-// == Literals ==
-
-type FunctionLiteral struct {
-	Body       *Block
-	Parameters []*IdentifierLiteral
-}
-
-func (fl *FunctionLiteral) Node()       {}
-func (fl *FunctionLiteral) Expression() {}
-func (fl *FunctionLiteral) String() string {
-	var str strings.Builder
-	for i, param := range fl.Parameters {
-		str.WriteString(param.String())
-		if i != len(fl.Parameters)-1 {
-			str.WriteString(", ")
-		}
-	}
-	params := str.String()
-	return fmt.Sprintf(
-		"fun(%s) %s",
-		params,
-		fl.Body,
-	)
-}
+/* == literals ===============================================================*/
 
 type NullLiteral struct{}
 
@@ -425,6 +405,29 @@ func (cl *ClassLiteral) String() string {
 	}
 	str.WriteString("}")
 	return str.String()
+}
+
+type FunctionLiteral struct {
+	Body       *Block
+	Parameters []*IdentifierLiteral
+}
+
+func (fl *FunctionLiteral) Node()       {}
+func (fl *FunctionLiteral) Expression() {}
+func (fl *FunctionLiteral) String() string {
+	var str strings.Builder
+	for i, param := range fl.Parameters {
+		str.WriteString(param.String())
+		if i != len(fl.Parameters)-1 {
+			str.WriteString(", ")
+		}
+	}
+	params := str.String()
+	return fmt.Sprintf(
+		"fun(%s) %s",
+		params,
+		fl.Body,
+	)
 }
 
 type ThisLiteral struct{}
