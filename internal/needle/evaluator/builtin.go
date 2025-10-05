@@ -14,7 +14,7 @@ func LoadBuiltins(env *Env) {
 			FType:  F_NATIVE,
 			Native: builtin,
 		}
-		env.Declare(name, fun, false)
+		env.Declare(name, fun)
 	}
 }
 

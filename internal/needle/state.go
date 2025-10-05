@@ -34,7 +34,7 @@ func (n *Needle) LoadFunction(
 		FType:  evaluator.F_NATIVE,
 		Native: coverNative(f, arity),
 	}
-	n.glob.Declare(name, nf, true)
+	n.glob.Declare(name, nf)
 }
 
 func (n *Needle) RunString(source string) error {

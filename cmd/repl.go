@@ -8,7 +8,7 @@ import (
 )
 
 func RunRepl() error {
-	fmt.Println("Needle ver")
+	fmt.Println("Needle ver0.0.1")
 	fmt.Println("exit using ctrl+c")
 	n := needle.New()
 	needle.LoadBuiltin(n)

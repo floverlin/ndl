@@ -8,16 +8,10 @@ import (
 var (
 	errVarAlreadyExists = errors.New("variable already exists")
 	errVarNotExists     = errors.New("variable not exists")
-	errVarIsImmutable   = errors.New("variable is immutable")
 )
 
-type wrappedValue struct {
-	Value   Value
-	Mutable bool
-}
-
 type Env struct {
-	store map[string]*wrappedValue
+	store map[string]Value
 	outer *Env
 	this  Value
 }
@@ -25,23 +19,23 @@ type Env struct {
 // outer can be nil, but root env must have global outer
 func NewEnv(outer *Env) *Env {
 	return &Env{
-		store: make(map[string]*wrappedValue),
+		store: make(map[string]Value),
 		outer: outer,
 	}
 }
 
-func (e *Env) Declare(name string, value Value, mutable bool) error {
+func (e *Env) Declare(name string, value Value) error {
 	if _, exists := e.store[name]; exists {
 		return errVarAlreadyExists
 	}
-	e.store[name] = &wrappedValue{Value: value, Mutable: mutable}
+	e.store[name] = value
 	return nil
 }
 
 func (e *Env) Get(name string) (Value, error) {
 	v, exists := e.store[name]
 	if exists {
-		return v.Value, nil
+		return v, nil
 	}
 	if e.outer != nil {
 		return e.outer.Get(name)
@@ -50,11 +44,8 @@ func (e *Env) Get(name string) (Value, error) {
 }
 
 func (e *Env) Set(name string, value Value) error {
-	if v, exists := e.store[name]; exists {
-		if !v.Mutable {
-			return errVarIsImmutable
-		}
-		v.Value = value
+	if _, exists := e.store[name]; exists {
+		e.store[name] = value
 		return nil
 	}
 	if e.outer != nil {

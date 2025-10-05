@@ -6,9 +6,10 @@ parser_test
 full parser
 full evaluator
 builtin classes
-imports / exports
 api
 full tests
+imports / exports
 cli
+web docs
 
 bytecode vm?

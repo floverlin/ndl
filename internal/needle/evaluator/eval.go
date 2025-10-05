@@ -121,7 +121,7 @@ func (e *Evaluator) declaration(node *parser.Declaration) (Value, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := e.env.Declare(name, value, true); err != nil {
+	if err := e.env.Declare(name, value); err != nil {
 		return nil, err
 	}
 	return &Null{}, nil
@@ -342,7 +342,7 @@ func (e *Evaluator) try(node *parser.TryStatement) (value Value, err error) {
 		oldEnv := e.env
 		e.env = NewEnv(oldEnv)
 		defer func() { e.env = oldEnv }()
-		e.env.Declare(node.As.Value, errValue, false)
+		e.env.Declare(node.As.Value, errValue)
 		_, err := e.Eval(node.Catch)
 		if err != nil {
 			return nil, fmt.Errorf("in catch: %w", err)
@@ -493,7 +493,7 @@ func (e *Evaluator) callFunction(
 	e.env = NewEnv(fun.Closure)
 	e.env.SetThis(this)
 	for i, val := range values {
-		e.env.Declare(fun.Parameters[i], val, false)
+		e.env.Declare(fun.Parameters[i], val)
 	}
 
 	defer func() {
