@@ -75,12 +75,12 @@ func (b *Block) Node()      {}
 func (b *Block) Statement() {}
 func (b *Block) String() string {
 	var str strings.Builder
-	str.WriteString("{ ")
+	str.WriteString("{")
 	for _, stmt := range b.Statements {
 		str.WriteString(stmt.String())
 		str.WriteByte(' ')
 	}
-	str.WriteByte('}')
+	str.WriteString("}")
 	return str.String()
 }
 
@@ -374,16 +374,21 @@ func (il *IdentifierLiteral) Expression()    {}
 func (il *IdentifierLiteral) String() string { return il.Value }
 
 type ClassLiteral struct {
-	Constructors map[*IdentifierLiteral]*FunctionLiteral
 	Fields       []*Declaration
+	Constructors map[*IdentifierLiteral]*FunctionLiteral
 	Public       map[*IdentifierLiteral]*FunctionLiteral
+	Private      map[*IdentifierLiteral]*FunctionLiteral
+	Getters      map[*IdentifierLiteral]*FunctionLiteral
+	Setters      map[*IdentifierLiteral]*FunctionLiteral
+	// MetaGetters  map[*IdentifierLiteral]*FunctionLiteral
+	// MetaSetters  map[*IdentifierLiteral]*FunctionLiteral
 }
 
 func (cl *ClassLiteral) Node()       {}
 func (cl *ClassLiteral) Expression() {}
 func (cl *ClassLiteral) String() string {
 	var str strings.Builder
-	str.WriteString("class{ ")
+	str.WriteString("class{")
 	for _, decl := range cl.Fields {
 		str.WriteString(decl.String() + " ")
 	}
@@ -428,6 +433,48 @@ func (fl *FunctionLiteral) String() string {
 		params,
 		fl.Body,
 	)
+}
+
+type ArrayLiteral struct {
+	Elements []Expression
+}
+
+func (al *ArrayLiteral) Node()       {}
+func (al *ArrayLiteral) Expression() {}
+func (al *ArrayLiteral) String() string {
+	var str strings.Builder
+	str.WriteString("array{")
+	for i, elem := range al.Elements {
+		str.WriteString(elem.String())
+		if i != len(al.Elements)-1 {
+			str.WriteString(", ")
+		}
+	}
+	str.WriteString("}")
+	return str.String()
+}
+
+type MapLiteral struct {
+	Pairs map[Expression]Expression
+}
+
+func (ml *MapLiteral) Node()       {}
+func (ml *MapLiteral) Expression() {}
+func (ml *MapLiteral) String() string {
+	var str strings.Builder
+	str.WriteString("map{")
+	i := 0
+	for k, v := range ml.Pairs {
+		str.WriteString(
+			fmt.Sprintf("[%s] = %s", k, v),
+		)
+		if i != len(ml.Pairs)-1 {
+			str.WriteString(", ")
+		}
+		i++
+	}
+	str.WriteString("}")
+	return str.String()
 }
 
 type ThisLiteral struct{}

@@ -109,6 +109,10 @@ func (p *Parser) expression(prec precedence) Expression {
 		expr = p.classLit()
 	case lexer.FUN:
 		expr = p.funLit()
+	case lexer.ARRAY:
+		expr = p.arrayLit()
+	case lexer.MAP:
+		expr = p.mapLit()
 
 	case lexer.NULL:
 		expr = &NullLiteral{}
@@ -333,9 +337,12 @@ func (p *Parser) assignStmt(left Expression) *AssignmentStatement {
 
 func (p *Parser) classLit() *ClassLiteral {
 	lit := &ClassLiteral{
+		Fields:       []*Declaration{},
 		Constructors: map[*IdentifierLiteral]*FunctionLiteral{},
 		Public:       map[*IdentifierLiteral]*FunctionLiteral{},
-		Fields:       []*Declaration{},
+		Private:      map[*IdentifierLiteral]*FunctionLiteral{},
+		Getters:      map[*IdentifierLiteral]*FunctionLiteral{},
+		Setters:      map[*IdentifierLiteral]*FunctionLiteral{},
 	}
 	p.expect(lexer.L_BRACE)
 	p.advance()
@@ -351,6 +358,23 @@ func (p *Parser) classLit() *ClassLiteral {
 			p.expect(lexer.IDENTIFIER)
 			name := &IdentifierLiteral{Value: p.current.Literal}
 			lit.Public[name] = p.funLit()
+		} else if p.current.Literal == LIT_PRIVATE {
+			p.expect(lexer.IDENTIFIER)
+			name := &IdentifierLiteral{Value: p.current.Literal}
+			lit.Private[name] = p.funLit()
+		} else if p.current.Literal == LIT_GET {
+			p.expect(lexer.IDENTIFIER)
+			name := &IdentifierLiteral{Value: p.current.Literal}
+			lit.Getters[name] = p.funLit()
+		} else if p.current.Literal == LIT_SET {
+			p.expect(lexer.IDENTIFIER)
+			name := &IdentifierLiteral{Value: p.current.Literal}
+			lit.Setters[name] = p.funLit()
+		} else {
+			panicParseError(
+				p.current,
+				"expected method declaration",
+			)
 		}
 		p.advance()
 		if p.check(lexer.EOF) {
@@ -369,6 +393,20 @@ func (p *Parser) funLit() *FunctionLiteral {
 	lit.Parameters = p.parameters()
 	p.expect(lexer.L_BRACE)
 	lit.Body = p.block()
+	return lit
+}
+
+func (p *Parser) arrayLit() *ArrayLiteral {
+	lit := &ArrayLiteral{}
+	p.expect(lexer.L_BRACE)
+	lit.Elements = p.arrayElements()
+	return lit
+}
+
+func (p *Parser) mapLit() *MapLiteral {
+	lit := &MapLiteral{}
+	p.expect(lexer.L_BRACE)
+	lit.Pairs = p.mapPairs()
 	return lit
 }
 
@@ -397,6 +435,66 @@ func (p *Parser) propExpr(left Expression) *PropertyExpression {
 }
 
 /* == parse utility ==========================================================*/
+
+func (p *Parser) mapPairs() map[Expression]Expression {
+	pairs := map[Expression]Expression{}
+	if p.peek().Type == lexer.R_BRACE {
+		p.advance()
+		return pairs
+	}
+	for {
+		p.expect(lexer.L_BRACKET)
+		p.advance()
+		k := p.expression(LOWEST)
+		p.expect(lexer.R_BRACKET)
+		p.expect(lexer.ASSIGN)
+		p.advance()
+		v := p.expression(LOWEST)
+		pairs[k] = v
+		p.advance()
+		if p.check(lexer.R_BRACE) {
+			break
+		}
+		if !p.check(lexer.COMMA) {
+			panicParseError(
+				p.current,
+				"expected ',' or '}'",
+			)
+		}
+		if p.peek().Type == lexer.R_BRACE {
+			p.advance()
+			break
+		}
+	}
+	return pairs
+}
+
+func (p *Parser) arrayElements() []Expression {
+	elems := []Expression{}
+	p.advance()
+	if p.check(lexer.R_BRACE) {
+		return elems
+	}
+	for {
+		expr := p.expression(LOWEST)
+		elems = append(elems, expr)
+		p.advance()
+		if p.check(lexer.R_BRACE) {
+			break
+		}
+		if !p.check(lexer.COMMA) {
+			panicParseError(
+				p.current,
+				"expected ',' or '}'",
+			)
+		}
+		p.advance()
+		if p.check(lexer.R_BRACE) {
+			break
+		}
+	}
+	return elems
+}
 
 func (p *Parser) arguments() []Expression {
 	args := []Expression{}

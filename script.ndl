@@ -1,6 +1,4 @@
-fun (a + b) {};
-var a = 12;
-{
-    var c = %;
-}
-asd();
+var f = fun() {};
+var c = class {};
+var a = array {};
+var m = map {};
