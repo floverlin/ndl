@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"needle/internal/interpreter"
-	"needle/internal/lexer"
-	"needle/internal/parser"
+	"needle/internal/needle/evaluator"
+	"needle/internal/needle/lexer"
+	"needle/internal/needle/parser"
 	"os"
 	"strings"
 	"time"
@@ -44,9 +44,9 @@ func RunFile(filePath string) error {
 	fmt.Println("== AST ==")
 	fmt.Println(strings.TrimSpace(script.String()))
 
-	glob := interpreter.NewEnv(nil)
-	interpreter.LoadBuiltins(glob)
-	ev := interpreter.New(glob)
+	glob := evaluator.NewEnv(nil)
+	evaluator.LoadBuiltins(glob)
+	ev := evaluator.New(glob)
 	fmt.Println("== Output ==")
 	start := time.Now()
 	err = ev.Run(script)

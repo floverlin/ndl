@@ -2,6 +2,8 @@ package pkg
 
 import "errors"
 
+var ErrEmpty = errors.New("empty")
+
 type Stack[T any] struct {
 	stack []T
 }
@@ -19,7 +21,7 @@ func (s *Stack[T]) Push(value T) {
 func (s *Stack[T]) Pop() (T, error) {
 	if len(s.stack) == 0 {
 		var zero T
-		return zero, errors.New("empty stack")
+		return zero, ErrEmpty
 	}
 	value := s.stack[len(s.stack)-1]
 	s.stack = s.stack[:len(s.stack)-1]

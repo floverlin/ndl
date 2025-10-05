@@ -3,16 +3,16 @@ package cmd
 import (
 	"bufio"
 	"fmt"
-	"needle/internal/interpreter"
-	"needle/internal/lexer"
-	"needle/internal/parser"
+	"needle/internal/needle/evaluator"
+	"needle/internal/needle/lexer"
+	"needle/internal/needle/parser"
 	"os"
 )
 
 func RunRepl() error {
 	fmt.Println("Needle ver")
 	fmt.Println("exit using ctrl+c")
-	ev := interpreter.New(interpreter.NewEnv(nil))
+	ev := evaluator.New(evaluator.NewEnv(nil))
 	for {
 		r := bufio.NewReader(os.Stdin)
 		fmt.Print("> ")

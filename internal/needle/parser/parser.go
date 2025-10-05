@@ -2,7 +2,7 @@ package parser
 
 import (
 	"fmt"
-	"needle/internal/lexer"
+	"needle/internal/needle/lexer"
 	"needle/internal/pkg"
 	"strconv"
 )
@@ -59,7 +59,7 @@ func (p *Parser) Parse() (*Script, error) {
 func (p *Parser) statement(declaration bool) (Statement, error) {
 	if declaration {
 		switch p.current.Type {
-		case lexer.CONST, lexer.VAR:
+		case lexer.VAR:
 			return p.declaration()
 		case lexer.CLASS:
 			p.advance()
@@ -160,7 +160,7 @@ func (p *Parser) expression(prec precedence) (expr Expression, err error) {
 		expr = &IdentifierLiteral{Value: p.current.Literal}
 	case lexer.THIS:
 		expr = &ThisLiteral{}
-	case lexer.MINUS, lexer.PLUS, lexer.NOT:
+	case lexer.MINUS, lexer.PLUS, lexer.WOW:
 		op := p.current.Literal
 		p.advance()
 		if e, pErr := p.expression(UN); pErr != nil {
@@ -416,7 +416,7 @@ func (p *Parser) class() (*ClassLiteral, error) {
 	}
 	p.advance()
 	for !p.match(lexer.R_BRACE) {
-		if p.current.Type == lexer.VAR || p.current.Type == lexer.CONST {
+		if p.current.Type == lexer.VAR {
 			decl, err := p.declaration()
 			if err != nil {
 				return nil, err

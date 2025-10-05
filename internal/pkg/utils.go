@@ -1,23 +1,11 @@
 package pkg
 
 func ShortString(str string, length int) string {
-	runes := []rune(str)
-	i := inRuneSlice(runes, rune('\n'))
-	if i >= 0 && i < length {
-		return string(runes[:i-1])
-	} else if len(runes) > length {
-		return string(runes[:length])
+	runeStr := []rune(str)
+	if length < len(runeStr) {
+		return string(runeStr[:length-1])
 	}
 	return str
-}
-
-func inRuneSlice(sl []rune, char rune) int {
-	for i, r := range sl {
-		if r == char {
-			return i
-		}
-	}
-	return -1
 }
 
 func SliceMap[T any, R any](s []T, f func(T) (R, error)) ([]R, error) {

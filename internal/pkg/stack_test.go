@@ -1,6 +1,7 @@
 package pkg_test
 
 import (
+	"errors"
 	"needle/internal/pkg"
 	"testing"
 )
@@ -11,7 +12,7 @@ func TestStack(t *testing.T) {
 	var err error
 
 	if s == nil {
-		t.Errorf("nil stack")
+		t.Errorf("unexpected nil")
 	}
 
 	v, err = s.Pop()
@@ -19,9 +20,9 @@ func TestStack(t *testing.T) {
 		t.Errorf("wrong zero value")
 	}
 	if err == nil {
-		t.Errorf("nil error")
+		t.Errorf("unexpected nil error")
 	}
-	if err.Error() != "empty stack" {
+	if !errors.Is(err, pkg.ErrEmpty) {
 		t.Errorf("wrong error")
 	}
 
@@ -38,7 +39,7 @@ func TestStack(t *testing.T) {
 		t.Errorf("wrong pop value")
 	}
 	if err != nil {
-		t.Errorf("non nil error")
+		t.Errorf("unexpected error")
 	}
 	if s.Length() != 1 {
 		t.Errorf("wrong stack length")

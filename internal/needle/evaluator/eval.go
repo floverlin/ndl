@@ -1,10 +1,10 @@
-package interpreter
+package evaluator
 
 import (
 	"errors"
 	"fmt"
 	"maps"
-	"needle/internal/parser"
+	"needle/internal/needle/parser"
 	"needle/internal/pkg"
 )
 

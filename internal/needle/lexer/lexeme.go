@@ -14,6 +14,15 @@ type Lexeme struct {
 	Column  int
 }
 
+func NewLexeme(type_ LexemeType, literal string, line, column int) *Lexeme {
+	return &Lexeme{
+		Type:    type_,
+		Literal: literal,
+		Line:    line,
+		Column:  column,
+	}
+}
+
 func PrintLexemes(lexemes []*Lexeme) {
 	fmt.Println("| type         | literal      | line | column |")
 	fmt.Println("|--------------|--------------|------|--------|")
@@ -61,27 +70,30 @@ const (
 	COMMA     LexemeType = ","
 	ASSIGN    LexemeType = "="
 	DOT       LexemeType = "."
+	WOW       LexemeType = "!"
 
 	OR  LexemeType = "or"
 	AND LexemeType = "and"
-	NOT LexemeType = "not"
 
-	VAR   LexemeType = "var"
-	CONST LexemeType = "const"
-	FUN   LexemeType = "fun"
+	VAR LexemeType = "var"
 
 	IDENTIFIER LexemeType = "identifier"
 	NULL       LexemeType = "null"
 	BOOLEAN    LexemeType = "boolean"
 	NUMBER     LexemeType = "number"
 	STRING     LexemeType = "string"
-	CLASS      LexemeType = "class"
+
+	FUN   LexemeType = "fun"
+	CLASS LexemeType = "class"
+	ARRAY LexemeType = "array"
+	MAP   LexemeType = "map"
 
 	FOR     LexemeType = "for"
 	WHILE   LexemeType = "while"
 	DO      LexemeType = "do"
 	IF      LexemeType = "if"
 	ELSE    LexemeType = "else"
+	WHEN    LexemeType = "when"
 	SWITCH  LexemeType = "switch"
 	CASE    LexemeType = "case"
 	DEFAULT LexemeType = "default"

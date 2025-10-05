@@ -1,7 +1,7 @@
-package interpreter
+package evaluator
 
 import (
-	"needle/internal/parser"
+	"needle/internal/needle/parser"
 	"strconv"
 )
 
