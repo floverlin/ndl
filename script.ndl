@@ -23,10 +23,7 @@ c.name = "Doris";
 c.hello("Doris");
 say c.name;
 
-var m = map{
-    [1 + 2] = "1 + " + "2",
-    ["hello"] = "Lin",
-};
+var m = map{[1 + 2] = "1 + " + "2", ["hello"] = "Lin"};
 var a = array{1, 2, 3, 4};
 say m;
 say a;
@@ -38,3 +35,12 @@ m[123] = m;
 say m[122 + 1]["hello"];
 say C;
 say c;
+
+say 1.;
+
+var f = fun() {
+    fun() {
+        -"er";
+    }();
+};
+f();

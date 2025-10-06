@@ -1,6 +1,9 @@
 package pkg
 
-import "errors"
+import (
+	"errors"
+	"slices"
+)
 
 var ErrEmpty = errors.New("empty")
 
@@ -30,4 +33,8 @@ func (s *Stack[T]) Pop() (T, error) {
 
 func (s *Stack[T]) Length() int {
 	return len(s.stack)
+}
+
+func (s *Stack[T]) Shot() []T {
+	return slices.Clone(s.stack)
 }

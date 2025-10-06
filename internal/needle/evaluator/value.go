@@ -34,16 +34,17 @@ const (
 )
 
 const (
-	VAL_NULL     ValueType = "null"
-	VAL_BOOLEAN  ValueType = "boolean"
-	VAL_NUMBER   ValueType = "number"
-	VAL_STRING   ValueType = "string"
-	VAL_FUNCTION ValueType = "function"
-	VAL_METHOD   ValueType = "method"
-	VAL_INSTANCE ValueType = "instance"
-	VAL_CLASS    ValueType = "class"
-	VAL_ARRAY    ValueType = "array"
-	VAL_MAP      ValueType = "map"
+	VAL_NULL      ValueType = "null"
+	VAL_BOOLEAN   ValueType = "boolean"
+	VAL_NUMBER    ValueType = "number"
+	VAL_STRING    ValueType = "string"
+	VAL_FUNCTION  ValueType = "function"
+	VAL_METHOD    ValueType = "method"
+	VAL_INSTANCE  ValueType = "instance"
+	VAL_EXCEPTION ValueType = "exception"
+	VAL_CLASS     ValueType = "class"
+	VAL_ARRAY     ValueType = "array"
+	VAL_MAP       ValueType = "map"
 )
 
 type ReturnSignal struct {
@@ -149,6 +150,18 @@ func (i *Instance) Type() ValueType { return VAL_FUNCTION }
 func (i *Instance) Debug() string {
 	return fmt.Sprintf("<instance %p of class %p>", i, i.Class)
 }
+
+type Exception struct {
+	Message    string
+	StackTrace []string
+}
+
+func (e *Exception) Type() ValueType { return VAL_EXCEPTION }
+func (e *Exception) Debug() string {
+	return fmt.Sprintf("<exception %p>", e)
+}
+
+
 
 type Array struct {
 	Elements []Value

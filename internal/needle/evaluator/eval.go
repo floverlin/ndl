@@ -9,25 +9,37 @@ import (
 )
 
 type Evaluator struct {
-	env *Env
+	env       *Env
+	callStack *pkg.Stack[string]
 }
 
 func New(global *Env) *Evaluator {
 	return &Evaluator{
-		env: global,
+		env:       global,
+		callStack: pkg.NewStack[string](),
 	}
 }
 
 func (e *Evaluator) Run(script *parser.Script) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
+			if exc, ok := r.(*Exception); ok {
+				fmt.Println(exc.Message)
+				fmt.Println(exc.StackTrace)
+				return
+			}
+			panic(r)
+		}
+	}()
+	defer func() {
+		if r := recover(); r != nil {
 			switch r := r.(type) {
 			case *ContinueSignal:
-				err = errors.New("'continue' not inside loop")
+				e.throwException("'continue' outside loop")
 			case *BreakSignal:
-				err = errors.New("'break' not inside loop")
+				e.throwException("'break' outside loop or switch")
 			case *ReturnSignal:
-				err = errors.New("'return' not inside function")
+				e.throwException("'return' outside function")
 			default:
 				panic(r)
 			}
@@ -464,6 +476,7 @@ func (e Evaluator) prefix(node *parser.PrefixExpression) (Value, error) {
 	if node.Operator == parser.OP_PLUS ||
 		node.Operator == parser.OP_MINUS {
 		if right.Type() != VAL_NUMBER {
+			e.throwException(fmt.Sprintf("expected number, got %s", right.Type()))
 			return nil, fmt.Errorf("expected number, got %s", right.Type())
 		}
 		if node.Operator == parser.OP_MINUS {
@@ -565,6 +578,10 @@ func (e *Evaluator) callFunction(
 		if argsErr != nil {
 			return nil, argsErr
 		}
+
+		e.callStack.Push("native function")
+		defer e.callStack.Pop()
+
 		return fun.Native(e, this, values...)
 	}
 
@@ -587,6 +604,9 @@ func (e *Evaluator) callFunction(
 	for i, val := range values {
 		e.env.Declare(fun.Parameters[i], val)
 	}
+
+	e.callStack.Push("function")
+	defer e.callStack.Pop()
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -891,4 +911,11 @@ var numBinOps = map[parser.Operator]binOp{
 		}
 		return &Boolean{Value: v1.(*Number).Value >= v2.(*Number).Value}, nil
 	},
+}
+
+func (e *Evaluator) throwException(message string) {
+	panic(&Exception{
+		Message:    message,
+		StackTrace: e.callStack.Shot(),
+	})
 }

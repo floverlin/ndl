@@ -188,11 +188,7 @@ func (lx *Lexer) readNumber(firstChar rune) *Lexeme {
 			break
 		}
 		if next == '.' {
-			dot := lx.read()
-			if !isDigit(lx.peek()) {
-				break
-			}
-			str.WriteRune(dot)
+			str.WriteRune(lx.read())
 			for {
 				next := lx.peek()
 				if !isDigit(next) {

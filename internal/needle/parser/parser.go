@@ -322,6 +322,10 @@ func (p *Parser) throwtmt() *ThrowStatement {
 func (p *Parser) returnStmt() *ReturnStatement {
 	stmt := &ReturnStatement{}
 	p.advance()
+	if p.check(lexer.SEMICOLON) {
+		stmt.Value = newNullExpression()
+		return stmt
+	}
 	stmt.Value = p.expression(LOWEST)
 	p.expect(lexer.SEMICOLON)
 	return stmt
