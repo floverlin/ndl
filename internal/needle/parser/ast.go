@@ -319,6 +319,38 @@ func (pe *PropertyExpression) String() string {
 	)
 }
 
+type IndexExpression struct {
+	Left  Expression
+	Index Expression
+}
+
+func (ie *IndexExpression) Node()       {}
+func (ie *IndexExpression) Expression() {}
+func (ie *IndexExpression) String() string {
+	return fmt.Sprintf(
+		"%s[%s]",
+		ie.Left,
+		ie.Index,
+	)
+}
+
+type SliceExpression struct {
+	Left  Expression
+	Start Expression
+	End   Expression
+}
+
+func (se *SliceExpression) Node()       {}
+func (se *SliceExpression) Expression() {}
+func (se *SliceExpression) String() string {
+	return fmt.Sprintf(
+		"%s[%s:%s]",
+		se.Left,
+		se.Start,
+		se.End,
+	)
+}
+
 /* == literals ===============================================================*/
 
 type NullLiteral struct{}

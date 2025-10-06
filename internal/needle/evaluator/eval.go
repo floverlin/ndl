@@ -76,6 +76,10 @@ func (e *Evaluator) Eval(node parser.Node) (Value, error) {
 		return e.call(node)
 	case *parser.PropertyExpression:
 		return e.property(node)
+	case *parser.IndexExpression:
+		return e.index(node)
+	case *parser.SliceExpression:
+		return e.slice(node)
 
 	case *parser.IdentifierLiteral:
 		return e.env.Get(node.Value)
@@ -97,6 +101,10 @@ func (e *Evaluator) Eval(node parser.Node) (Value, error) {
 		return e.function(node)
 	case *parser.ClassLiteral:
 		return e.class(node)
+	case *parser.ArrayLiteral:
+		return e.array(node)
+	case *parser.MapLiteral:
+		return e.map_(node)
 	default:
 		return nil, errors.New("TODO")
 	}
@@ -144,23 +152,6 @@ func (e *Evaluator) function(node *parser.FunctionLiteral) (Value, error) {
 
 func (e *Evaluator) class(node *parser.ClassLiteral) (Value, error) {
 	class := &Class{}
-	ctors, err := pkg.MapMap(
-		node.Constructors,
-		func(
-			ident *parser.IdentifierLiteral,
-			lit *parser.FunctionLiteral,
-		) (string, *Function, error) {
-			name := ident.Value
-			v, err := e.Eval(lit)
-			if err != nil {
-				return "", nil, err
-			}
-			return name, v.(*Function), nil
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
 	fields, err := pkg.SliceToMapMap(
 		node.Fields,
 		func(decl *parser.Declaration) (string, Value, error) {
@@ -174,27 +165,87 @@ func (e *Evaluator) class(node *parser.ClassLiteral) (Value, error) {
 	if err != nil {
 		return nil, err
 	}
-	methods, err := pkg.MapMap(
-		node.Public,
-		func(
-			ident *parser.IdentifierLiteral,
-			lit *parser.FunctionLiteral,
-		) (string, *Function, error) {
-			name := ident.Value
-			v, err := e.Eval(lit)
-			if err != nil {
-				return "", nil, err
-			}
-			return name, v.(*Function), nil
-		},
+	f_map_map := func(
+		ident *parser.IdentifierLiteral,
+		lit *parser.FunctionLiteral,
+	) (string, *Function, error) {
+		name := ident.Value
+		v, err := e.Eval(lit)
+		if err != nil {
+			return "", nil, err
+		}
+		return name, v.(*Function), nil
+	}
+	ctors, err := pkg.MapMap(
+		node.Constructors,
+		f_map_map,
 	)
 	if err != nil {
 		return nil, err
 	}
-	class.Constructors = ctors
+	public, err := pkg.MapMap(
+		node.Public,
+		f_map_map,
+	)
+	if err != nil {
+		return nil, err
+	}
+	private, err := pkg.MapMap(
+		node.Private,
+		f_map_map,
+	)
+	if err != nil {
+		return nil, err
+	}
+	getters, err := pkg.MapMap(
+		node.Getters,
+		f_map_map,
+	)
+	if err != nil {
+		return nil, err
+	}
+	setters, err := pkg.MapMap(
+		node.Setters,
+		f_map_map,
+	)
+	if err != nil {
+		return nil, err
+	}
 	class.Fields = fields
-	class.Methods = methods
+	class.Constructors = ctors
+	class.Public = public
+	class.Private = private
+	class.Getters = getters
+	class.Setters = setters
 	return class, nil
+}
+
+func (e *Evaluator) array(node *parser.ArrayLiteral) (Value, error) {
+	arr := &Array{Elements: []Value{}}
+	for _, expr := range node.Elements {
+		elem, err := e.Eval(expr)
+		if err != nil {
+			return nil, err
+		}
+		arr.Elements = append(arr.Elements, elem)
+	}
+	return arr, nil
+}
+
+func (e *Evaluator) map_(node *parser.MapLiteral) (Value, error) {
+	m := &Map{Pairs: NewHashTable()}
+	for kExpr, vExpr := range node.Pairs {
+		k, err := e.Eval(kExpr)
+		if err != nil {
+			return nil, err
+		}
+		v, err := e.Eval(vExpr)
+		if err != nil {
+			return nil, err
+		}
+		m.Pairs.Set(k, v)
+	}
+	return m, nil
 }
 
 func (e *Evaluator) say(node *parser.SayStatement) (Value, error) {
@@ -311,16 +362,57 @@ func (e *Evaluator) assignment(
 		err = e.env.Set(left.Value, right)
 	case *parser.PropertyExpression:
 		prop := left.Property.Value
-		_, ok := left.Left.(*parser.ThisLiteral)
-		if !ok {
-			return nil, errors.New("can assign only to this object")
+		if _, ok := left.Left.(*parser.ThisLiteral); ok {
+			instance := e.env.GetThis()
+			if instance == nil {
+				return nil, errors.New("'this' is undefined")
+			}
+			if _, ok := instance.(*Instance).Fields[prop]; !ok {
+				return nil, errors.New("missing field")
+			}
+			instance.(*Instance).Fields[prop] = right
+			return &Null{}, nil
 		}
-		instance := e.env.GetThis()
-		if instance == nil {
-			return nil, errors.New("'this' is undefined")
+		obj, err := e.Eval(left.Left)
+		if err != nil {
+			return nil, err
 		}
-		instance.(*Instance).Fields[prop] = right
-		return &Null{}, nil
+		switch obj := obj.(type) {
+		case *Instance:
+			if setter, ok := obj.Class.Setters[prop]; !ok {
+				return nil, errors.New("missing setter")
+			} else {
+				return e.callFunction(setter, obj, []parser.Expression{node.Right}) // TODO
+			}
+		}
+	case *parser.IndexExpression:
+		index, err := e.Eval(left.Index)
+		if err != nil {
+			return nil, err
+		}
+		obj, err := e.Eval(left.Left)
+		if err != nil {
+			return nil, err
+		}
+		switch obj := obj.(type) {
+		case *Array:
+			index, ok := index.(*Number)
+			if !ok {
+				return nil, errors.New("non umber index")
+			}
+			intIndex := int(index.Value)
+			if intIndex < 0 || intIndex >= len(obj.Elements) {
+				return nil, errors.New("index out of range")
+			}
+			obj.Elements[intIndex] = right
+			return &Null{}, nil
+		case *Map:
+			_, err := obj.Pairs.Set(index, right)
+			if err != nil {
+				return nil, err
+			}
+			return &Null{}, nil
+		}
 	default:
 		err = errors.New("can't assign to ???")
 	}
@@ -541,23 +633,120 @@ func (e *Evaluator) property(node *parser.PropertyExpression) (Value, error) {
 	case *Instance:
 		if _, isThis := node.Left.(*parser.ThisLiteral); isThis {
 			value, ok := left.Fields[prop]
-			if !ok {
-				return nil, errors.New("missing field")
+			if ok {
+				return value, nil
 			}
-			return value, nil
+			priv, ok := left.Class.Private[prop]
+			if ok {
+				method := &Method{
+					Function:      priv,
+					This:          left,
+					IsConstructor: false,
+				}
+				return method, nil
+			}
+			pub, ok := left.Class.Public[prop]
+			if ok {
+				method := &Method{
+					Function:      pub,
+					This:          left,
+					IsConstructor: false,
+				}
+				return method, nil
+			}
+			return nil, errors.New("missing field or method")
 		}
-		fun, ok := left.Class.Methods[prop]
-		if !ok {
-			return nil, errors.New("missing property")
+		if get, ok := left.Class.Getters[prop]; ok {
+			val, err := e.callFunction(get, left, []parser.Expression{})
+			if err != nil {
+				return nil, err
+			}
+			return val, nil
 		}
-		method := &Method{
-			Function:      fun,
-			This:          left,
-			IsConstructor: false,
+		if fun, ok := left.Class.Public[prop]; ok {
+			method := &Method{
+				Function:      fun,
+				This:          left,
+				IsConstructor: false,
+			}
+			return method, nil
 		}
-		return method, nil
+		return nil, errors.New("missing property")
 	default:
 		return nil, errors.New("can't get property of ???")
+	}
+}
+
+func (e *Evaluator) index(node *parser.IndexExpression) (Value, error) {
+	left, err := e.Eval(node.Left)
+	if err != nil {
+		return nil, err
+	}
+	index, err := e.Eval(node.Index)
+	if err != nil {
+		return nil, err
+	}
+	switch left := left.(type) {
+	case *Array:
+		if index, ok := index.(*Number); !ok {
+			return nil, errors.New("non number index")
+		} else {
+			intIndex := int(index.Value)
+			if index.Value != float64(intIndex) {
+				return nil, errors.New("non integer index")
+			}
+			if intIndex < 0 || intIndex >= len(left.Elements) {
+				return nil, errors.New("index out of range")
+			}
+			return left.Elements[intIndex], nil
+		}
+	case *Map:
+		return left.Pairs.Get(index)
+	default:
+		return nil, errors.New("type not supports index access")
+	}
+}
+
+func (e *Evaluator) slice(node *parser.SliceExpression) (Value, error) {
+	left, err := e.Eval(node.Left)
+	if err != nil {
+		return nil, err
+	}
+	start, err := e.Eval(node.Start)
+	if err != nil {
+		return nil, err
+	}
+	end, err := e.Eval(node.End)
+	if err != nil {
+		return nil, err
+	}
+	switch left := left.(type) {
+	case *Array:
+		start, startOk := start.(*Number)
+		end, endOk := end.(*Number)
+		if !startOk || !endOk {
+			return nil, errors.New("non number index")
+		}
+		intStart := int(start.Value)
+		if start.Value != float64(intStart) {
+			return nil, errors.New("non integer index")
+		}
+		intEnd := int(end.Value)
+		if end.Value != float64(intEnd) {
+			return nil, errors.New("non integer index")
+		}
+		if intStart < 0 || intStart >= len(left.Elements) {
+			return nil, errors.New("index out of range")
+		}
+		if intEnd < 0 || intEnd >= len(left.Elements) {
+			return nil, errors.New("index out of range")
+		}
+		if intStart > intEnd {
+			return nil, errors.New("first index greater then second")
+		}
+		return &Array{Elements: left.Elements[intStart:intEnd]}, nil
+	default:
+		return nil, errors.New("type not supports index access")
 	}
 }
 

@@ -160,6 +160,8 @@ func (p *Parser) expression(prec precedence) Expression {
 			expr = p.callExpr(expr)
 		case lexer.DOT:
 			expr = p.propExpr(expr)
+		case lexer.L_BRACKET:
+			expr = p.indexOrSliceExpr(expr)
 		default:
 			panicParseError(
 				p.current,
@@ -432,6 +434,25 @@ func (p *Parser) propExpr(left Expression) *PropertyExpression {
 	p.expect(lexer.IDENTIFIER)
 	expr.Property = &IdentifierLiteral{Value: p.current.Literal}
 	return expr
+}
+
+func (p *Parser) indexOrSliceExpr(left Expression) Expression {
+	p.advance()
+	index := p.expression(LOWEST)
+	p.advance()
+	if p.check(lexer.R_BRACKET) {
+		return &IndexExpression{Left: left, Index: index}
+	}
+	if !p.check(lexer.COLON) {
+		panicParseError(
+			p.current,
+			"expected ']' or ':'",
+		)
+	}
+	p.advance()
+	end := p.expression(LOWEST)
+	p.expect(lexer.R_BRACKET)
+	return &SliceExpression{Left: left, Start: index, End: end}
 }
 
 /* == parse utility ==========================================================*/

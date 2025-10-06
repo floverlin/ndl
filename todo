@@ -4,6 +4,7 @@ new parser system (check)
 new parser (check)
 parser_test
 full parser
+new evaluator system
 full evaluator
 builtin classes
 api
