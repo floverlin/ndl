@@ -1,2 +1,2 @@
-if (true) if (false) say "bad"; else say "good"; //# good
+if (true) if (false) say "bad"; else say "good"; //# "good"
 if (false) if (true) say "bad"; else say "bad";

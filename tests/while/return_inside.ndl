@@ -5,4 +5,4 @@ var a = fun() {
     }
 };
 
-say a(); //# b
+say a(); //# "b"

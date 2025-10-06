@@ -1,7 +1,7 @@
-if (true) say "good"; //# good
+if (true) say "good"; //# "good"
 if (false) say "bad";
 
-if (true) { say "block"; } //# block
+if (true) { say "block"; } //# "block"
 
 var Test = class{ constructor new() {} public check() { return true; } };
 var t = Test.new();

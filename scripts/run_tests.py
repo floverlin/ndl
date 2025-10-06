@@ -38,8 +38,11 @@ try:
             print(file, "-> OK")
         else:
             ok_flag = False
-            if i > len(expected):
-                print(file, f"-> ERROR: want {len(expected)} lines, got {i}")
+            if len(out[start + 1 : end]) > len(expected):
+                print(
+                    file,
+                    f"-> ERROR: want {len(expected)} lines, got {len(out[start + 1 : end])}",
+                )
                 continue
             for i, line in enumerate(out[start + 1 : end]):
                 if line != expected[i]:
