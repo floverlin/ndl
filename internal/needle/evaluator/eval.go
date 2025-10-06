@@ -35,21 +35,21 @@ func (e *Evaluator) Run(script *parser.Script) (err error) {
 		if r := recover(); r != nil {
 			switch r := r.(type) {
 			case *ContinueSignal:
-				e.throwException("'continue' outside loop")
+				e.ThrowException("'continue' outside loop")
 			case *BreakSignal:
-				e.throwException("'break' outside loop or switch")
+				e.ThrowException("'break' outside loop or switch")
 			case *ReturnSignal:
-				e.throwException("'return' outside function")
+				e.ThrowException("'return' outside function")
 			default:
 				panic(r)
 			}
 		}
 	}()
-	_, err = e.Eval(script)
-	return
+	e.Eval(script)
+	return nil
 }
 
-func (e *Evaluator) Eval(node parser.Node) (Value, error) {
+func (e *Evaluator) Eval(node parser.Node) Value {
 	switch node := node.(type) {
 	case *parser.Script:
 		return e.script(node)
@@ -94,21 +94,25 @@ func (e *Evaluator) Eval(node parser.Node) (Value, error) {
 		return e.slice(node)
 
 	case *parser.IdentifierLiteral:
-		return e.env.Get(node.Value)
+		val, err := e.env.Get(node.Value)
+		if err != nil {
+			e.ThrowException("%s", err.Error())
+		}
+		return val
 	case *parser.ThisLiteral:
 		if this := e.env.GetThis(); this == nil {
-			return nil, errors.New("'this' is undefined")
+			e.ThrowException("'this' is undefined")
 		} else {
-			return this, nil
+			return this
 		}
 	case *parser.NullLiteral:
-		return &Null{}, nil
+		return &Null{}
 	case *parser.BooleanLiteral:
-		return &Boolean{Value: node.Value}, nil
+		return &Boolean{Value: node.Value}
 	case *parser.NumberLiteral:
-		return &Number{Value: node.Value}, nil
+		return &Number{Value: node.Value}
 	case *parser.StringLiteral:
-		return &String{Value: node.Value}, nil
+		return &String{Value: node.Value}
 	case *parser.FunctionLiteral:
 		return e.function(node)
 	case *parser.ClassLiteral:
@@ -118,36 +122,30 @@ func (e *Evaluator) Eval(node parser.Node) (Value, error) {
 	case *parser.MapLiteral:
 		return e.map_(node)
 	default:
-		return nil, errors.New("TODO")
+		e.ThrowException("TODO")
 	}
+	return nil
 }
 
-func (e *Evaluator) block(node *parser.Block) (Value, error) {
+func (e *Evaluator) block(node *parser.Block) Value {
 	oldEnv := e.env
 	defer func() { e.env = oldEnv }()
 	e.env = NewEnv(oldEnv)
 	for _, stmt := range node.Statements {
-		_, err := e.Eval(stmt)
-		if err != nil {
-			return nil, err
-		}
+		e.Eval(stmt)
 	}
-	return &Null{}, nil
+	return &Null{}
 }
 
-func (e *Evaluator) declaration(node *parser.Declaration) (Value, error) {
+func (e *Evaluator) declaration(node *parser.Declaration) Value {
 	name := node.Identifier.Value
-	value, err := e.Eval(node.Right)
-	if err != nil {
-		return nil, err
+	if err := e.env.Declare(name, e.Eval(node.Right)); err != nil {
+		e.ThrowException("%s", err.Error())
 	}
-	if err := e.env.Declare(name, value); err != nil {
-		return nil, err
-	}
-	return &Null{}, nil
+	return &Null{}
 }
 
-func (e *Evaluator) function(node *parser.FunctionLiteral) (Value, error) {
+func (e *Evaluator) function(node *parser.FunctionLiteral) Value {
 	params, _ := pkg.SliceMap(
 		node.Parameters,
 		func(e *parser.IdentifierLiteral) (string, error) {
@@ -159,139 +157,86 @@ func (e *Evaluator) function(node *parser.FunctionLiteral) (Value, error) {
 		Closure:    e.env.Clone(),
 		Body:       node.Body.Statements,
 		Parameters: params,
-	}, nil
+	}
 }
 
-func (e *Evaluator) class(node *parser.ClassLiteral) (Value, error) {
+func (e *Evaluator) class(node *parser.ClassLiteral) Value {
 	class := &Class{}
-	fields, err := pkg.SliceToMapMap(
+	fields, _ := pkg.SliceToMapMap(
 		node.Fields,
 		func(decl *parser.Declaration) (string, Value, error) {
-			val, err := e.Eval(decl.Right)
-			if err != nil {
-				return "", nil, err
-			}
-			return decl.Identifier.Value, val, nil
+			return decl.Identifier.Value, e.Eval(decl.Right), nil
 		},
 	)
-	if err != nil {
-		return nil, err
-	}
 	f_map_map := func(
 		ident *parser.IdentifierLiteral,
 		lit *parser.FunctionLiteral,
 	) (string, *Function, error) {
-		name := ident.Value
-		v, err := e.Eval(lit)
-		if err != nil {
-			return "", nil, err
-		}
-		return name, v.(*Function), nil
+		return ident.Value, e.Eval(lit).(*Function), nil
 	}
-	ctors, err := pkg.MapMap(
+	ctors, _ := pkg.MapMap(
 		node.Constructors,
 		f_map_map,
 	)
-	if err != nil {
-		return nil, err
-	}
-	public, err := pkg.MapMap(
+	public, _ := pkg.MapMap(
 		node.Public,
 		f_map_map,
 	)
-	if err != nil {
-		return nil, err
-	}
-	private, err := pkg.MapMap(
+	private, _ := pkg.MapMap(
 		node.Private,
 		f_map_map,
 	)
-	if err != nil {
-		return nil, err
-	}
-	getters, err := pkg.MapMap(
+	getters, _ := pkg.MapMap(
 		node.Getters,
 		f_map_map,
 	)
-	if err != nil {
-		return nil, err
-	}
-	setters, err := pkg.MapMap(
+	setters, _ := pkg.MapMap(
 		node.Setters,
 		f_map_map,
 	)
-	if err != nil {
-		return nil, err
-	}
 	class.Fields = fields
 	class.Constructors = ctors
 	class.Public = public
 	class.Private = private
 	class.Getters = getters
 	class.Setters = setters
-	return class, nil
+	return class
 }
 
-func (e *Evaluator) array(node *parser.ArrayLiteral) (Value, error) {
+func (e *Evaluator) array(node *parser.ArrayLiteral) Value {
 	arr := &Array{Elements: []Value{}}
 	for _, expr := range node.Elements {
-		elem, err := e.Eval(expr)
-		if err != nil {
-			return nil, err
-		}
-		arr.Elements = append(arr.Elements, elem)
+		arr.Elements = append(arr.Elements, e.Eval(expr))
 	}
-	return arr, nil
+	return arr
 }
 
-func (e *Evaluator) map_(node *parser.MapLiteral) (Value, error) {
+func (e *Evaluator) map_(node *parser.MapLiteral) Value {
 	m := &Map{Pairs: NewHashTable()}
 	for kExpr, vExpr := range node.Pairs {
-		k, err := e.Eval(kExpr)
-		if err != nil {
-			return nil, err
-		}
-		v, err := e.Eval(vExpr)
-		if err != nil {
-			return nil, err
-		}
-		m.Pairs.Set(k, v)
+		m.Pairs.Set(e.Eval(kExpr), e.Eval(vExpr))
 	}
-	return m, nil
+	return m
 }
 
-func (e *Evaluator) say(node *parser.SayStatement) (Value, error) {
-	value, err := e.Eval(node.Expression)
-	if err != nil {
-		return nil, err
-	}
-	fmt.Println(value.Debug())
-	return &Null{}, nil
+func (e *Evaluator) say(node *parser.SayStatement) Value {
+	fmt.Println(e.Eval(node.Expression).Debug())
+	return &Null{}
 }
 
-func (e *Evaluator) if_(node *parser.IfStatement) (Value, error) {
-	cond, err := e.Eval(node.Condition)
-	if err != nil {
-		return nil, err
-	}
+func (e *Evaluator) if_(node *parser.IfStatement) Value {
 	var toDo parser.Node
-	if toBoolean(cond) {
+	if toBoolean(e.Eval(node.Condition)) {
 		toDo = node.Then
 	} else {
 		toDo = node.Else
 	}
-	_, err = e.Eval(toDo)
-	if err != nil {
-		return nil, err
-	}
-	return &Null{}, err
+	e.Eval(toDo)
+	return &Null{}
 }
 
-func (e *Evaluator) while(node *parser.WhileStatement) (Value, error) {
-	cond, err := e.Eval(node.Condition)
-	if err != nil {
-		return nil, err
-	}
+func (e *Evaluator) while(node *parser.WhileStatement) Value {
+	cond := e.Eval(node.Condition)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -303,20 +248,14 @@ func (e *Evaluator) while(node *parser.WhileStatement) (Value, error) {
 	}()
 
 	for toBoolean(cond) {
-		if err := e.doLoop(node.Do); err != nil {
-			return nil, err
-		}
-		cond, err = e.Eval(node.Condition)
-		if err != nil {
-			return nil, err
-		}
+		e.loop(node.Do)
+		cond = e.Eval(node.Condition)
 	}
-	return &Null{}, nil
+	return &Null{}
 }
 
-func (e *Evaluator) do(node *parser.DoStatement) (Value, error) {
+func (e *Evaluator) do(node *parser.DoStatement) Value {
 	var cond Value = &Boolean{Value: true}
-	var err error
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -328,18 +267,13 @@ func (e *Evaluator) do(node *parser.DoStatement) (Value, error) {
 	}()
 
 	for toBoolean(cond) {
-		if err := e.doLoop(node.Do); err != nil {
-			return nil, err
-		}
-		cond, err = e.Eval(node.While)
-		if err != nil {
-			return nil, err
-		}
+		e.loop(node.Do)
+		cond = e.Eval(node.While)
 	}
-	return &Null{}, nil
+	return &Null{}
 }
 
-func (e *Evaluator) doLoop(do parser.Statement) (err error) {
+func (e *Evaluator) loop(do parser.Statement) {
 	defer func() {
 		if r := recover(); r != nil {
 			if _, ok := r.(*ContinueSignal); ok {
@@ -348,173 +282,159 @@ func (e *Evaluator) doLoop(do parser.Statement) (err error) {
 			panic(r)
 		}
 	}()
-	_, err = e.Eval(do)
-	return
+	e.Eval(do)
 }
 
 func (e *Evaluator) expression(
 	node *parser.ExpressionStatement,
-) (Value, error) {
-	_, err := e.Eval(node.Expression)
-	if err != nil {
-		return nil, err
-	}
-	return &Null{}, err
+) Value {
+	e.Eval(node.Expression)
+	return &Null{}
 }
 
 func (e *Evaluator) assignment(
 	node *parser.AssignmentStatement,
-) (Value, error) {
-	right, err := e.Eval(node.Right)
-	if err != nil {
-		return nil, err
-	}
+) Value {
+	right := e.Eval(node.Right)
+
 	switch left := node.Left.(type) {
 	case *parser.IdentifierLiteral:
-		err = e.env.Set(left.Value, right)
+		if err := e.env.Set(left.Value, right); err != nil {
+			e.ThrowException("%s", err.Error())
+		}
 	case *parser.PropertyExpression:
 		prop := left.Property.Value
-		if _, ok := left.Left.(*parser.ThisLiteral); ok {
+		if _, isThis := left.Left.(*parser.ThisLiteral); isThis {
 			instance := e.env.GetThis()
 			if instance == nil {
-				return nil, errors.New("'this' is undefined")
+				e.ThrowException("'this' is undefined")
 			}
-			if _, ok := instance.(*Instance).Fields[prop]; !ok {
-				return nil, errors.New("missing field")
+			if _, ok := instance.Fields[prop]; !ok {
+				e.ThrowException("missing field")
 			}
-			instance.(*Instance).Fields[prop] = right
-			return &Null{}, nil
+			instance.Fields[prop] = right
+			return &Null{}
 		}
-		obj, err := e.Eval(left.Left)
-		if err != nil {
-			return nil, err
-		}
+		obj := e.Eval(left.Left)
 		switch obj := obj.(type) {
 		case *Instance:
 			if setter, ok := obj.Class.Setters[prop]; !ok {
-				return nil, errors.New("missing setter")
+				e.ThrowException("missing setter")
 			} else {
 				return e.callFunction(setter, obj, []parser.Expression{node.Right}) // TODO
 			}
 		}
 	case *parser.IndexExpression:
-		index, err := e.Eval(left.Index)
-		if err != nil {
-			return nil, err
-		}
-		obj, err := e.Eval(left.Left)
-		if err != nil {
-			return nil, err
-		}
+		index := e.Eval(left.Index)
+		obj := e.Eval(left.Left)
 		switch obj := obj.(type) {
 		case *Array:
 			index, ok := index.(*Number)
 			if !ok {
-				return nil, errors.New("non umber index")
+				e.ThrowException("non umber index")
 			}
 			intIndex := int(index.Value)
 			if intIndex < 0 || intIndex >= len(obj.Elements) {
-				return nil, errors.New("index out of range")
+				e.ThrowException("index out of range")
 			}
 			obj.Elements[intIndex] = right
-			return &Null{}, nil
+			return &Null{}
 		case *Map:
 			_, err := obj.Pairs.Set(index, right)
 			if err != nil {
-				return nil, err
+				e.ThrowException("%s", err.Error())
 			}
-			return &Null{}, nil
+			return &Null{}
 		}
 	default:
-		err = errors.New("can't assign to ???")
+		e.ThrowException("can't assign to ???")
 	}
-	if err != nil {
-		return nil, err
-	}
-	return &Null{}, err
+	return nil
 }
 
-func (e *Evaluator) try(node *parser.TryStatement) (value Value, err error) {
-	defer func() {
-		if _, err = e.Eval(node.Finally); err != nil {
-			value, err = nil, fmt.Errorf("in finally: %w", err)
-		}
-	}()
-	_, err = e.Eval(node.Try)
-	if err != nil {
-		errValue := &String{Value: err.Error()}
+func (e *Evaluator) try(node *parser.TryStatement) Value {
+
+	exc := catchException(e.Eval, node.Try)
+	var excCatch *Exception
+	if exc != nil {
 		oldEnv := e.env
 		e.env = NewEnv(oldEnv)
 		defer func() { e.env = oldEnv }()
-		e.env.Declare(node.As.Value, errValue)
-		_, err := e.Eval(node.Catch)
-		if err != nil {
-			return nil, fmt.Errorf("in catch: %w", err)
+		e.env.Declare(node.As.Value, exc)
+		excCatch = catchException(e.Eval, node.Catch)
+	}
+	excFin := catchException(e.Eval, node.Finally)
+
+	if excFin != nil {
+		panic(excFin)
+	} else if excCatch != nil {
+		panic(excCatch)
+	}
+	return &Null{}
+}
+
+func catchException(f func(parser.Node) Value, node parser.Node) (exception *Exception) {
+	defer func() {
+		if r := recover(); r != nil {
+			if exc, ok := r.(*Exception); ok {
+				exception = exc
+				return
+			}
+			panic(r)
 		}
-	}
-	return &Null{}, nil
+	}()
+	f(node)
+	return nil
 }
 
-func (e *Evaluator) throw(node *parser.ThrowStatement) (Value, error) {
-	errValue, err := e.Eval(node.Error)
-	if err != nil {
-		return nil, err
-	}
-	return nil, errors.New(errValue.Debug())
+func (e *Evaluator) throw(node *parser.ThrowStatement) Value {
+	e.ThrowException("%s", e.Eval(node.Error).Debug())
+	return nil
 }
 
-func (e Evaluator) prefix(node *parser.PrefixExpression) (Value, error) {
-	right, err := e.Eval(node.Right)
-	if err != nil {
-		return nil, err
-	}
+func (e Evaluator) prefix(node *parser.PrefixExpression) Value {
+	right := e.Eval(node.Right)
 	if node.Operator == parser.OP_NOT {
 		return &Boolean{
 			Value: !toBoolean(right),
-		}, nil
+		}
 	}
 	if node.Operator == parser.OP_PLUS ||
 		node.Operator == parser.OP_MINUS {
 		if right.Type() != VAL_NUMBER {
-			e.throwException(fmt.Sprintf("expected number, got %s", right.Type()))
-			return nil, fmt.Errorf("expected number, got %s", right.Type())
+			e.ThrowException("expected number, got %s", right.Type())
 		}
 		if node.Operator == parser.OP_MINUS {
-			return &Number{Value: -right.(*Number).Value}, nil
+			return &Number{Value: -right.(*Number).Value}
 		} else {
-			return &Number{Value: +right.(*Number).Value}, nil
+			return &Number{Value: +right.(*Number).Value}
 		}
 	}
-	return nil, errors.New("unknown prefix operator")
+	e.ThrowException("unknown prefix operator")
+	return nil
 }
 
 type binOp func(Value, Value) (Value, error)
 
-func (e *Evaluator) infix(node *parser.InfixExpression) (Value, error) {
-	left, err := e.Eval(node.Left)
-	if err != nil {
-		return nil, err
-	}
-	right, err := e.Eval(node.Right)
-	if err != nil {
-		return nil, err
-	}
+func (e *Evaluator) infix(node *parser.InfixExpression) Value {
+	left := e.Eval(node.Left)
+	right := e.Eval(node.Right)
 
 	switch node.Operator {
 	case parser.OP_IS:
-		return &Boolean{Value: right == left}, nil
+		return &Boolean{Value: right == left}
 	case parser.OP_ISNT:
-		return &Boolean{Value: right != left}, nil
+		return &Boolean{Value: right != left}
 	case parser.OP_OR:
 		if toBoolean(left) {
-			return left, nil
+			return left
 		}
-		return right, nil
+		return right
 	case parser.OP_AND:
 		if toBoolean(left) {
-			return right, nil
+			return right
 		}
-		return left, nil
+		return left
 	}
 
 	var f binOp
@@ -527,76 +447,79 @@ func (e *Evaluator) infix(node *parser.InfixExpression) (Value, error) {
 	case *Boolean:
 		f, ok = boolBinOps[node.Operator]
 	default:
-		return nil, errors.New("unsupported type")
+		e.ThrowException("unsupported type")
 	}
 	if !ok {
-		return nil, errors.New("unsupported operator for type")
+		e.ThrowException("unsupported operator for type")
 	}
 	res, err := f(left, right)
 	if err != nil {
-		return nil, err
+		e.ThrowException("%s", err.Error())
 	}
-	return res, nil
+	return res
 }
 
 func (e *Evaluator) call(
 	node *parser.CallExpression,
-) (Value, error) {
-	left, err := e.Eval(node.Left)
-	if err != nil {
-		return nil, err
-	}
+) Value {
+	left := e.Eval(node.Left)
 	if fun, ok := left.(*Function); ok {
 		return e.callFunction(fun, nil, node.Arguments)
 	}
 	if method, ok := left.(*Method); ok {
-		value, err := e.callFunction(
+		value := e.callFunction(
 			method.Function,
 			method.This,
 			node.Arguments,
 		)
-		if err != nil {
-			return nil, err
-		}
 		if method.IsConstructor {
-			return method.This, nil
+			return method.This
 		}
-		return value, nil
+		return value
 	}
-	return nil, errors.New("not collable")
+	e.ThrowException("not collable")
+	return nil
 }
 
 func (e *Evaluator) callFunction(
 	fun *Function,
-	this Value,
+	this *Instance,
 	args []parser.Expression,
-) (return_ Value, err error) {
+) (return_ Value) {
+	catchSignal := func() {
+		if r := recover(); r != nil {
+			switch r := r.(type) {
+			case *ContinueSignal:
+				e.ThrowException("'continue' outside loop")
+			case *BreakSignal:
+				e.ThrowException("'break' outside loop or switch")
+			default:
+				panic(r)
+			}
+		}
+	}
 
 	// call native
 	if fun.FType == F_NATIVE {
-		values, argsErr := e.evalExpressions(args)
-		if argsErr != nil {
-			return nil, argsErr
-		}
+		values := e.evalExpressions(args)
 
 		e.callStack.Push("native function")
 		defer e.callStack.Pop()
 
+		defer catchSignal()
 		return fun.Native(e, this, values...)
 	}
 
 	// call function
 	if len(fun.Parameters) != len(args) {
-		return nil, fmt.Errorf(
+		e.ThrowException(
 			"expected %d arguments, got %d",
 			len(fun.Parameters),
 			len(args),
 		)
 	}
-	values, argsErr := e.evalExpressions(args)
-	if argsErr != nil {
-		return nil, argsErr
-	}
+	values := e.evalExpressions(args)
+
 	oldEnv := e.env
 	defer func() { e.env = oldEnv }()
 	e.env = NewEnv(fun.Closure)
@@ -607,6 +530,8 @@ func (e *Evaluator) callFunction(
 
 	e.callStack.Push("function")
 	defer e.callStack.Pop()
+
+	defer catchSignal()
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -619,26 +544,21 @@ func (e *Evaluator) callFunction(
 	}()
 
 	for _, stmt := range fun.Body {
-		_, err := e.Eval(stmt)
-		if err != nil {
-			return nil, err
-		}
+		e.Eval(stmt)
 	}
 
-	return &Null{}, nil
+	return &Null{}
 }
 
-func (e *Evaluator) property(node *parser.PropertyExpression) (Value, error) {
-	left, err := e.Eval(node.Left)
+func (e *Evaluator) property(node *parser.PropertyExpression) Value {
+	left := e.Eval(node.Left)
 	prop := node.Property.Value
-	if err != nil {
-		return nil, err
-	}
+
 	switch left := left.(type) {
 	case *Class:
 		ctor, ok := left.Constructors[prop]
 		if !ok {
-			return nil, errors.New("missing constructor")
+			e.ThrowException("missing constructor")
 		}
 		this := &Instance{
 			Class:  left,
@@ -649,12 +569,12 @@ func (e *Evaluator) property(node *parser.PropertyExpression) (Value, error) {
 			This:          this,
 			IsConstructor: true,
 		}
-		return method, nil
+		return method
 	case *Instance:
 		if _, isThis := node.Left.(*parser.ThisLiteral); isThis {
 			value, ok := left.Fields[prop]
 			if ok {
-				return value, nil
+				return value
 			}
 			priv, ok := left.Class.Private[prop]
 			if ok {
@@ -663,143 +583,120 @@ func (e *Evaluator) property(node *parser.PropertyExpression) (Value, error) {
 					This:          left,
 					IsConstructor: false,
 				}
-				return method, nil
+				return method
 			}
 			pub, ok := left.Class.Public[prop]
 			if ok {
-				method := &Method{
+				return &Method{
 					Function:      pub,
 					This:          left,
 					IsConstructor: false,
 				}
-				return method, nil
 			}
-			return nil, errors.New("missing field or method")
+			e.ThrowException("missing field or method")
 		}
 		if get, ok := left.Class.Getters[prop]; ok {
-			val, err := e.callFunction(get, left, []parser.Expression{})
-			if err != nil {
-				return nil, err
-			}
-			return val, nil
+			return e.callFunction(get, left, []parser.Expression{})
 		}
 		if fun, ok := left.Class.Public[prop]; ok {
-			method := &Method{
+			return &Method{
 				Function:      fun,
 				This:          left,
 				IsConstructor: false,
 			}
-			return method, nil
 		}
-		return nil, errors.New("missing property")
+		e.ThrowException("missing property")
 	default:
-		return nil, errors.New("can't get property of ???")
+		e.ThrowException("can't get property of ???")
 	}
+	return nil
 }
 
-func (e *Evaluator) index(node *parser.IndexExpression) (Value, error) {
-	left, err := e.Eval(node.Left)
-	if err != nil {
-		return nil, err
-	}
-	index, err := e.Eval(node.Index)
-	if err != nil {
-		return nil, err
-	}
+func (e *Evaluator) index(node *parser.IndexExpression) Value {
+	left := e.Eval(node.Left)
+	index := e.Eval(node.Index)
+
 	switch left := left.(type) {
 	case *Array:
 		if index, ok := index.(*Number); !ok {
-			return nil, errors.New("non number index")
+			e.ThrowException("non number index")
 		} else {
 			intIndex := int(index.Value)
 			if index.Value != float64(intIndex) {
-				return nil, errors.New("non integer index")
+				e.ThrowException("non integer index")
 			}
 			if intIndex < 0 || intIndex >= len(left.Elements) {
-				return nil, errors.New("index out of range")
+				e.ThrowException("index out of range")
 			}
-			return left.Elements[intIndex], nil
+			return left.Elements[intIndex]
 		}
 	case *Map:
-		return left.Pairs.Get(index)
+		val, err := left.Pairs.Get(index)
+		if err != nil {
+			e.ThrowException("%s", err.Error())
+		}
+		return val
 	default:
-		return nil, errors.New("type not supports index access")
+		e.ThrowException("type not supports index access")
 	}
+	return nil
 }
 
-func (e *Evaluator) slice(node *parser.SliceExpression) (Value, error) {
-	left, err := e.Eval(node.Left)
-	if err != nil {
-		return nil, err
-	}
-	start, err := e.Eval(node.Start)
-	if err != nil {
-		return nil, err
-	}
-	end, err := e.Eval(node.End)
-	if err != nil {
-		return nil, err
-	}
+func (e *Evaluator) slice(node *parser.SliceExpression) Value {
+	left := e.Eval(node.Left)
+	start := e.Eval(node.Start)
+	end := e.Eval(node.End)
+
 	switch left := left.(type) {
 	case *Array:
 		start, startOk := start.(*Number)
 		end, endOk := end.(*Number)
 		if !startOk || !endOk {
-			return nil, errors.New("non number index")
+			e.ThrowException("non number index")
 		}
 		intStart := int(start.Value)
 		if start.Value != float64(intStart) {
-			return nil, errors.New("non integer index")
+			e.ThrowException("non integer index")
 		}
 		intEnd := int(end.Value)
 		if end.Value != float64(intEnd) {
-			return nil, errors.New("non integer index")
+			e.ThrowException("non integer index")
 		}
 		if intStart < 0 || intStart >= len(left.Elements) {
-			return nil, errors.New("index out of range")
+			e.ThrowException("index out of range")
 		}
 		if intEnd < 0 || intEnd >= len(left.Elements) {
-			return nil, errors.New("index out of range")
+			e.ThrowException("index out of range")
 		}
 		if intStart > intEnd {
-			return nil, errors.New("first index greater then second")
+			e.ThrowException("first index greater then second")
 		}
-		return &Array{Elements: left.Elements[intStart:intEnd]}, nil
+		return &Array{Elements: left.Elements[intStart:intEnd]}
 	default:
-		return nil, errors.New("type not supports index access")
+		e.ThrowException("type not supports index access")
 	}
+	return nil
 }
 
-func (e *Evaluator) return_(node *parser.ReturnStatement) (Value, error) {
-	value, err := e.Eval(node.Value)
-	if err != nil {
-		return nil, err
-	}
-	panic(&ReturnSignal{Value: value})
+func (e *Evaluator) return_(node *parser.ReturnStatement) Value {
+	panic(&ReturnSignal{Value: e.Eval(node.Value)})
 }
 
 func (e *Evaluator) evalExpressions(
 	exprs []parser.Expression,
-) ([]Value, error) {
+) []Value {
 	values := []Value{}
 	for _, expr := range exprs {
-		v, err := e.Eval(expr)
-		if err != nil {
-			return nil, err
-		}
-		values = append(values, v)
+		values = append(values, e.Eval(expr))
 	}
-	return values, nil
+	return values
 }
 
-func (e *Evaluator) script(node *parser.Script) (*Null, error) {
+func (e *Evaluator) script(node *parser.Script) Value {
 	for _, stmt := range node.Statements {
-		_, err := e.Eval(stmt)
-		if err != nil {
-			return nil, err
-		}
+		e.Eval(stmt)
 	}
-	return &Null{}, nil
+	return &Null{}
 }
 
 func toBoolean(value Value) bool {
@@ -913,9 +810,9 @@ var numBinOps = map[parser.Operator]binOp{
 	},
 }
 
-func (e *Evaluator) throwException(message string) {
+func (e *Evaluator) ThrowException(message string, a ...any) {
 	panic(&Exception{
-		Message:    message,
+		Message:    fmt.Sprintf(message, a...),
 		StackTrace: e.callStack.Shot(),
 	})
 }

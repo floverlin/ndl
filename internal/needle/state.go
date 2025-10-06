@@ -58,10 +58,10 @@ func coverNative(f evaluator.NativeFunction, a int) evaluator.NativeFunction {
 		e *evaluator.Evaluator,
 		this evaluator.Value,
 		args ...evaluator.Value,
-	) (evaluator.Value, error) {
+	) evaluator.Value {
 		err := evaluator.CheckArgsLength(a, args)
 		if err != nil {
-			return nil, err
+			e.ThrowException("%s", err.Error())
 		}
 		return f(e, this, args...)
 	}

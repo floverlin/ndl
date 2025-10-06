@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-type NativeFunction func(e *Evaluator, this Value, args ...Value) (Value, error)
+type NativeFunction func(e *Evaluator, this Value, args ...Value) Value
 
 func LoadBuiltins(env *Env) {
 	for name, builtin := range builtins {
@@ -38,28 +38,28 @@ func CheckArgsLength(length int, args []Value) error {
 	return nil
 }
 
-func builtin_clock(e *Evaluator, this Value, args ...Value) (Value, error) {
+func builtin_clock(e *Evaluator, this Value, args ...Value) Value {
 	if err := CheckArgsLength(0, args); err != nil {
-		return nil, err
+		e.ThrowException("%s", err.Error())
 	}
 	t := float64(time.Now().UnixNano()) / float64(time.Second)
-	return &Number{Value: t}, nil
+	return &Number{Value: t}
 }
 
-func builtin_class_of(e *Evaluator, this Value, args ...Value) (Value, error) {
+func builtin_class_of(e *Evaluator, this Value, args ...Value) Value {
 	if err := CheckArgsLength(1, args); err != nil {
-		return nil, err
+		e.ThrowException("%s", err.Error())
 	}
 	if instance, ok := args[0].(*Instance); ok {
-		return instance.Class, nil
+		return instance.Class
 	}
-	return &Null{}, nil
+	return &Null{}
 }
 
-func builtin_random(e *Evaluator, this Value, args ...Value) (Value, error) {
+func builtin_random(e *Evaluator, this Value, args ...Value) Value {
 	if err := CheckArgsLength(0, args); err != nil {
-		return nil, err
+		e.ThrowException("%s", err.Error())
 	}
 	r := rand.Float64()
-	return &Number{Value: r}, nil
+	return &Number{Value: r}
 }

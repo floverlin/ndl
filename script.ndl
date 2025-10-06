@@ -10,7 +10,7 @@ var C = class{
         return this.name;
     }
     public hello(name) {
-        say this.greeting(name);
+        say this.greeting();
     }
     private greeting(other) {
         return "Hello, " + other + "! My name is " + this.name + "!";
@@ -37,10 +37,3 @@ say C;
 say c;
 
 say 1.;
-
-var f = fun() {
-    fun() {
-        -"er";
-    }();
-};
-f();

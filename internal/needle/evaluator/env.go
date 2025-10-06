@@ -13,7 +13,7 @@ var (
 type Env struct {
 	store map[string]Value
 	outer *Env
-	this  Value
+	this  *Instance
 }
 
 // outer can be nil, but root env must have global outer
@@ -65,7 +65,7 @@ func (e *Env) Clone() *Env {
 	}
 }
 
-func (e *Env) GetThis() Value {
+func (e *Env) GetThis() *Instance {
 	if e.this != nil {
 		return e.this
 	}
@@ -75,6 +75,6 @@ func (e *Env) GetThis() Value {
 	return nil
 }
 
-func (e *Env) SetThis(this Value) {
+func (e *Env) SetThis(this *Instance) {
 	e.this = this
 }
