@@ -10,13 +10,13 @@ import (
 
 type Evaluator struct {
 	env       *Env
-	callStack *pkg.Stack[string]
+	callStack *pkg.Stack[*Function]
 }
 
 func New(global *Env) *Evaluator {
 	return &Evaluator{
 		env:       global,
-		callStack: pkg.NewStack[string](),
+		callStack: pkg.NewStack[*Function](),
 	}
 }
 
@@ -24,8 +24,7 @@ func (e *Evaluator) Run(script *parser.Script) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			if exc, ok := r.(*Exception); ok {
-				fmt.Println(exc.Message)
-				fmt.Println(exc.StackTrace)
+				err = exc
 				return
 			}
 			panic(r)
@@ -503,7 +502,7 @@ func (e *Evaluator) callFunction(
 	if fun.FType == F_NATIVE {
 		values := e.evalExpressions(args)
 
-		e.callStack.Push("native function")
+		e.callStack.Push(fun)
 		defer e.callStack.Pop()
 
 		defer catchSignal()
@@ -528,7 +527,7 @@ func (e *Evaluator) callFunction(
 		e.env.Declare(fun.Parameters[i], val)
 	}
 
-	e.callStack.Push("function")
+	e.callStack.Push(fun)
 	defer e.callStack.Pop()
 
 	defer catchSignal()

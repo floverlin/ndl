@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"needle/internal/needle/parser"
 	"strconv"
+	"strings"
 )
 
 type ValueType string
@@ -153,15 +154,26 @@ func (i *Instance) Debug() string {
 
 type Exception struct {
 	Message    string
-	StackTrace []string
+	StackTrace []*Function
 }
 
 func (e *Exception) Type() ValueType { return VAL_EXCEPTION }
 func (e *Exception) Debug() string {
 	return fmt.Sprintf("<exception %p>", e)
 }
-
-
+func (e *Exception) Error() string {
+	var trace strings.Builder
+	for _, fun := range e.StackTrace {
+		trace.WriteString("\t")
+		trace.WriteString(fun.Debug())
+		trace.WriteString("\n")
+	}
+	return fmt.Sprintf(
+		"%s\n%s",
+		e.Message,
+		trace.String(),
+	)
+}
 
 type Array struct {
 	Elements []Value

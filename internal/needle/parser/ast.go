@@ -101,6 +101,24 @@ func (is *IfStatement) String() string {
 	)
 }
 
+type Case struct {
+	Targets []Expression
+	Index   int
+}
+
+type SwitchStatement struct {
+	Object  Expression
+	Cases   []*Case
+	Default int
+	Body    *Block
+}
+
+func (ss *SwitchStatement) Node()      {}
+func (ss *SwitchStatement) Statement() {}
+func (ss *SwitchStatement) String() string {
+	return "__switch_case__"
+}
+
 type WhileStatement struct {
 	Condition Expression
 	Do        Statement
