@@ -77,3 +77,17 @@ func MapMap[
 	}
 	return nm, nil
 }
+
+func Catch[I, O, E any](f func(I) O, input I) (output O, exception E) {
+	defer func() {
+		if r := recover(); r != nil {
+			if exc, ok := r.(E); ok {
+				exception = exc
+				return
+			}
+			panic(r)
+		}
+	}()
+	output = f(input)
+	return
+}

@@ -353,16 +353,16 @@ func (e *Evaluator) assignment(
 
 func (e *Evaluator) try(node *parser.TryStatement) Value {
 
-	exc := catchException(e.Eval, node.Try)
+	_, exc := pkg.Catch[parser.Node, Value, *Exception](e.Eval, node.Try)
 	var excCatch *Exception
 	if exc != nil {
 		oldEnv := e.env
 		e.env = NewEnv(oldEnv)
 		defer func() { e.env = oldEnv }()
 		e.env.Declare(node.As.Value, exc)
-		excCatch = catchException(e.Eval, node.Catch)
+		_, excCatch = pkg.Catch[parser.Node, Value, *Exception](e.Eval, node.Catch)
 	}
-	excFin := catchException(e.Eval, node.Finally)
+	_, excFin := pkg.Catch[parser.Node, Value, *Exception](e.Eval, node.Finally)
 
 	if excFin != nil {
 		panic(excFin)
@@ -370,20 +370,6 @@ func (e *Evaluator) try(node *parser.TryStatement) Value {
 		panic(excCatch)
 	}
 	return &Null{}
-}
-
-func catchException(f func(parser.Node) Value, node parser.Node) (exception *Exception) {
-	defer func() {
-		if r := recover(); r != nil {
-			if exc, ok := r.(*Exception); ok {
-				exception = exc
-				return
-			}
-			panic(r)
-		}
-	}()
-	f(node)
-	return nil
 }
 
 func (e *Evaluator) throw(node *parser.ThrowStatement) Value {
