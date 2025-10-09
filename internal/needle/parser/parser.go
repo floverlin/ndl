@@ -65,8 +65,6 @@ func (p *Parser) statement() Statement {
 		return p.doStmt()
 	case lexer.IF:
 		return p.ifStmt()
-	case lexer.SWITCH:
-		return p.switchStmt()
 	case lexer.SAY:
 		return p.sayStmt()
 	case lexer.TRY:
@@ -270,53 +268,6 @@ func (p *Parser) ifStmt() *IfStatement {
 	return stmt
 }
 
-func (p *Parser) switchStmt() *SwitchStatement {
-	stmt := &SwitchStatement{
-		Cases: []*Case{},
-		Body:  &Block{Statements: []Statement{}},
-	}
-	p.expect(lexer.L_PAREN)
-	p.advance()
-	stmt.Object = p.expression(LOWEST)
-	p.expect(lexer.R_PAREN)
-	p.expect(lexer.L_BRACE)
-	i := 0
-	hasDefault := false
-outer:
-	for {
-		p.advance()
-		switch p.current.Type {
-		case lexer.R_BRACE:
-			break outer
-		case lexer.CASE:
-			case_ := &Case{Index: i}
-			p.advance()
-			case_.Targets = p.caseTargets()
-			stmt.Cases = append(stmt.Cases, case_)
-			p.expect(lexer.COLON)
-		case lexer.DEFAULT:
-			if hasDefault {
-				panicParseError(
-					p.current,
-					"switch-case can have only one 'default'",
-				)
-			}
-			hasDefault = true
-			p.expect(lexer.COLON)
-			stmt.Default = i
-		case lexer.EOF:
-			panicParseError(
-				p.current,
-				"expected '}'",
-			)
-		default:
-			stmt.Body.Statements = append(stmt.Body.Statements, p.declaration())
-			i++
-		}
-	}
-	return stmt
-}
-
 func (p *Parser) sayStmt() *SayStatement {
 	stmt := &SayStatement{}
 	p.advance()
@@ -509,16 +460,6 @@ func (p *Parser) indexOrSliceExpr(left Expression) Expression {
 }
 
 /* == parse utility ==========================================================*/
-
-func (p *Parser) caseTargets() []Expression {
-	targets := []Expression{}
-	targets = append(targets, p.expression(LOWEST))
-	for p.peek().Type == lexer.COMMA {
-		p.advance()
-		targets = append(targets, p.expression(LOWEST))
-	}
-	return targets
-}
 
 func (p *Parser) mapPairs() map[Expression]Expression {
 	pairs := map[Expression]Expression{}

@@ -352,7 +352,6 @@ func (e *Evaluator) assignment(
 }
 
 func (e *Evaluator) try(node *parser.TryStatement) Value {
-
 	_, exc := pkg.Catch[parser.Node, Value, *Exception](e.Eval, node.Try)
 	var excCatch *Exception
 	if exc != nil {

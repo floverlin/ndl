@@ -14,7 +14,7 @@ func main() {
 		err = cmd.RunFile(os.Args[1])
 	}
 	if err != nil {
-		io.WriteString(os.Stderr, err.Error())
+		io.WriteString(os.Stderr, err.Error()+"\n")
 		os.Exit(1)
 	}
 }
