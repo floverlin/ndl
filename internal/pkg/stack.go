@@ -28,6 +28,11 @@ func (s *Stack[T]) Pop() (T, error) {
 	}
 	value := s.stack[len(s.stack)-1]
 	s.stack = s.stack[:len(s.stack)-1]
+	if len(s.stack) <= cap(s.stack) {
+		n := make([]T, len(s.stack)+int(len(s.stack)/4))
+		copy(n, s.stack)
+		s.stack = n
+	}
 	return value, nil
 }
 

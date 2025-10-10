@@ -19,6 +19,13 @@ func newNumberClass() *Class {
 					return &String{Value: strconv.FormatFloat(num.Value, 'g', -1, 64)}
 				}, 0),
 			},
+			"to_boolean": {
+				FType: F_NATIVE,
+				Native: coverNative(func(e *Evaluator, this Value, args ...Value) Value {
+					num := this.(*Number)
+					return &Boolean{Value: num.Value != 0}
+				}, 0),
+			},
 		},
 	}
 }
@@ -51,6 +58,19 @@ func newStringClass() *Class {
 					return &String{Value: string(up)}
 				}, 0),
 			},
+			"to_lower_case": {
+				FType: F_NATIVE,
+				Native: coverNative(func(e *Evaluator, this Value, args ...Value) Value {
+					str := this.(*String)
+					low := []rune(str.Value)
+					for i := range len(low) {
+						if 'A' <= low[i] && low[i] <= 'Z' {
+							low[i] -= 'A' - 'a'
+						}
+					}
+					return &String{Value: string(low)}
+				}, 0),
+			},
 		},
 	}
 }
@@ -65,6 +85,25 @@ func newArrayClass() *Class {
 					arr.Elements = append(arr.Elements, args...)
 					return e.env.globals.Null
 				}, 1),
+			},
+			"pop": {
+				FType: F_NATIVE,
+				Native: coverNative(func(e *Evaluator, this Value, args ...Value) Value {
+					arr := this.(*Array)
+					if len(arr.Elements) == 0 {
+						e.ThrowException("array is empty")
+					}
+					elem := arr.Elements[len(arr.Elements)-1]
+					arr.Elements = arr.Elements[:len(arr.Elements)-1]
+					return elem
+				}, 0),
+			},
+			"length": {
+				FType: F_NATIVE,
+				Native: coverNative(func(e *Evaluator, this Value, args ...Value) Value {
+					arr := this.(*Array)
+					return &Number{Value: float64(len(arr.Elements))}
+				}, 0),
 			},
 		},
 	}
