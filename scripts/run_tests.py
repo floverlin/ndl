@@ -38,7 +38,7 @@ try:
             print(file, "-> OK")
         else:
             ok_flag = False
-            if len(out[start + 1 : end]) > len(expected):
+            if len(out[start + 1 : end]) != len(expected):
                 print(
                     file,
                     f"-> ERROR: want {len(expected)} lines, got {len(out[start + 1 : end])}",
