@@ -16,13 +16,13 @@ type Needle struct {
 func New() *Needle {
 	glob := evaluator.NewEnv(nil)
 	return &Needle{
-		ev:   evaluator.New(glob),
+		ev:   evaluator.New(),
 		glob: glob,
 	}
 }
 
 func LoadBuiltin(n *Needle) {
-	evaluator.LoadBuiltins(n.glob)
+	evaluator.LoadBuiltins(n.ev)
 }
 
 func (n *Needle) LoadFunction(

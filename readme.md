@@ -104,6 +104,7 @@ MAP             -> "map" map ;
 ```
 
 ### Utility
+
 ```
 function        -> "(" parameters? ")" block ;
 class           -> "{" class_decl* "}" ;
@@ -139,4 +140,14 @@ map_dacl        -> "[" expresion "]" "=" expression
     logic_or
     assign
 -LOWER-
+```
+
+```needle
+struct {
+    my_name: fun() { say this.name; };
+    name: "Lin";
+}
+
+user?.name?.to_upper_case();
+
 ```

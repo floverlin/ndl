@@ -9,14 +9,21 @@ import (
 )
 
 type Evaluator struct {
-	env       *Env
-	callStack *pkg.Stack[*Function]
+	env            *Env
+	callStack      *pkg.Stack[*Function]
+	defaultClasses map[string]*Class
 }
 
-func New(global *Env) *Evaluator {
+func New() *Evaluator {
+	env := NewEnv(nil)
+	classes := CreateBaseClasses()
+	for name, class := range classes {
+		env.Declare(name, class)
+	}
 	return &Evaluator{
-		env:       global,
-		callStack: pkg.NewStack[*Function](),
+		env:            env,
+		callStack:      pkg.NewStack[*Function](),
+		defaultClasses: classes,
 	}
 }
 
@@ -105,9 +112,12 @@ func (e *Evaluator) Eval(node parser.Node) Value {
 			return this
 		}
 	case *parser.NullLiteral:
-		return &Null{}
+		return e.env.globals.Null
 	case *parser.BooleanLiteral:
-		return &Boolean{Value: node.Value}
+		if node.Value {
+			return e.env.globals.True
+		}
+		return e.env.globals.False
 	case *parser.NumberLiteral:
 		return &Number{Value: node.Value}
 	case *parser.StringLiteral:
@@ -118,8 +128,8 @@ func (e *Evaluator) Eval(node parser.Node) Value {
 		return e.class(node)
 	case *parser.ArrayLiteral:
 		return e.array(node)
-	case *parser.MapLiteral:
-		return e.map_(node)
+	case *parser.TableLiteral:
+		return e.table(node)
 	default:
 		e.ThrowException("TODO")
 	}
@@ -133,7 +143,7 @@ func (e *Evaluator) block(node *parser.Block) Value {
 	for _, stmt := range node.Statements {
 		e.Eval(stmt)
 	}
-	return &Null{}
+	return nil
 }
 
 func (e *Evaluator) declaration(node *parser.Declaration) Value {
@@ -141,7 +151,7 @@ func (e *Evaluator) declaration(node *parser.Declaration) Value {
 	if err := e.env.Declare(name, e.Eval(node.Right)); err != nil {
 		e.ThrowException("%s", err.Error())
 	}
-	return &Null{}
+	return nil
 }
 
 func (e *Evaluator) function(node *parser.FunctionLiteral) Value {
@@ -210,17 +220,17 @@ func (e *Evaluator) array(node *parser.ArrayLiteral) Value {
 	return arr
 }
 
-func (e *Evaluator) map_(node *parser.MapLiteral) Value {
-	m := &Map{Pairs: NewHashTable()}
+func (e *Evaluator) table(node *parser.TableLiteral) Value {
+	table := &Table{Pairs: NewHashTable()}
 	for kExpr, vExpr := range node.Pairs {
-		m.Pairs.Set(e.Eval(kExpr), e.Eval(vExpr))
+		table.Pairs.Set(e.Eval(kExpr), e.Eval(vExpr))
 	}
-	return m
+	return table
 }
 
 func (e *Evaluator) say(node *parser.SayStatement) Value {
 	fmt.Println(e.Eval(node.Expression).Debug())
-	return &Null{}
+	return nil
 }
 
 func (e *Evaluator) if_(node *parser.IfStatement) Value {
@@ -231,7 +241,7 @@ func (e *Evaluator) if_(node *parser.IfStatement) Value {
 		toDo = node.Else
 	}
 	e.Eval(toDo)
-	return &Null{}
+	return nil
 }
 
 func (e *Evaluator) while(node *parser.WhileStatement) Value {
@@ -250,7 +260,7 @@ func (e *Evaluator) while(node *parser.WhileStatement) Value {
 		e.loop(node.Do)
 		cond = e.Eval(node.Condition)
 	}
-	return &Null{}
+	return nil
 }
 
 func (e *Evaluator) do(node *parser.DoStatement) Value {
@@ -269,7 +279,7 @@ func (e *Evaluator) do(node *parser.DoStatement) Value {
 		e.loop(node.Do)
 		cond = e.Eval(node.While)
 	}
-	return &Null{}
+	return nil
 }
 
 func (e *Evaluator) loop(do parser.Statement) {
@@ -288,7 +298,7 @@ func (e *Evaluator) expression(
 	node *parser.ExpressionStatement,
 ) Value {
 	e.Eval(node.Expression)
-	return &Null{}
+	return nil
 }
 
 func (e *Evaluator) assignment(
@@ -308,11 +318,11 @@ func (e *Evaluator) assignment(
 			if instance == nil {
 				e.ThrowException("'this' is undefined")
 			}
-			if _, ok := instance.Fields[prop]; !ok {
+			if _, ok := instance.(*Instance).Fields[prop]; !ok {
 				e.ThrowException("missing field")
 			}
-			instance.Fields[prop] = right
-			return &Null{}
+			instance.(*Instance).Fields[prop] = right
+			return nil
 		}
 		obj := e.Eval(left.Left)
 		switch obj := obj.(type) {
@@ -320,7 +330,8 @@ func (e *Evaluator) assignment(
 			if setter, ok := obj.Class.Setters[prop]; !ok {
 				e.ThrowException("missing setter")
 			} else {
-				return e.callFunction(setter, obj, []parser.Expression{node.Right}) // TODO
+				e.callFunction(setter, obj, []parser.Expression{node.Right}) // TODO
+				return nil
 			}
 		}
 	case *parser.IndexExpression:
@@ -337,13 +348,13 @@ func (e *Evaluator) assignment(
 				e.ThrowException("index out of range")
 			}
 			obj.Elements[intIndex] = right
-			return &Null{}
-		case *Map:
+			return nil
+		case *Table:
 			_, err := obj.Pairs.Set(index, right)
 			if err != nil {
 				e.ThrowException("%s", err.Error())
 			}
-			return &Null{}
+			return nil
 		}
 	default:
 		e.ThrowException("can't assign to ???")
@@ -368,7 +379,7 @@ func (e *Evaluator) try(node *parser.TryStatement) Value {
 	} else if excCatch != nil {
 		panic(excCatch)
 	}
-	return &Null{}
+	return nil
 }
 
 func (e *Evaluator) throw(node *parser.ThrowStatement) Value {
@@ -467,7 +478,7 @@ func (e *Evaluator) call(
 
 func (e *Evaluator) callFunction(
 	fun *Function,
-	this *Instance,
+	this Value,
 	args []parser.Expression,
 ) (return_ Value) {
 	catchSignal := func() {
@@ -531,7 +542,7 @@ func (e *Evaluator) callFunction(
 		e.Eval(stmt)
 	}
 
-	return &Null{}
+	return e.env.globals.Null
 }
 
 func (e *Evaluator) property(node *parser.PropertyExpression) Value {
@@ -590,9 +601,48 @@ func (e *Evaluator) property(node *parser.PropertyExpression) Value {
 			}
 		}
 		e.ThrowException("missing property")
-	default:
-		e.ThrowException("can't get property of ???")
+	case *String:
+		pub, ok := e.defaultClasses[CLASS_STRING].Public[prop]
+		if ok {
+			return &Method{
+				Function:      pub,
+				This:          left,
+				IsConstructor: false,
+			}
+		}
+		e.ThrowException("missing field or method")
+	case *Number:
+		pub, ok := e.defaultClasses[CLASS_NUMBER].Public[prop]
+		if ok {
+			return &Method{
+				Function:      pub,
+				This:          left,
+				IsConstructor: false,
+			}
+		}
+		e.ThrowException("missing field or method")
+	case *Array:
+		pub, ok := e.defaultClasses[CLASS_ARRAY].Public[prop]
+		if ok {
+			return &Method{
+				Function:      pub,
+				This:          left,
+				IsConstructor: false,
+			}
+		}
+		e.ThrowException("missing field or method")
+	case *Table:
+		pub, ok := e.defaultClasses[CLASS_TABLE].Public[prop]
+		if ok {
+			return &Method{
+				Function:      pub,
+				This:          left,
+				IsConstructor: false,
+			}
+		}
+		e.ThrowException("missing field or method")
 	}
+	e.ThrowException("can't get property of ???")
 	return nil
 }
 
@@ -614,15 +664,14 @@ func (e *Evaluator) index(node *parser.IndexExpression) Value {
 			}
 			return left.Elements[intIndex]
 		}
-	case *Map:
+	case *Table:
 		val, err := left.Pairs.Get(index)
 		if err != nil {
 			e.ThrowException("%s", err.Error())
 		}
 		return val
-	default:
-		e.ThrowException("type not supports index access")
 	}
+	e.ThrowException("type not supports index access")
 	return nil
 }
 
@@ -656,9 +705,8 @@ func (e *Evaluator) slice(node *parser.SliceExpression) Value {
 			e.ThrowException("first index greater then second")
 		}
 		return &Array{Elements: left.Elements[intStart:intEnd]}
-	default:
-		e.ThrowException("type not supports index access")
 	}
+	e.ThrowException("type not supports index access")
 	return nil
 }
 
@@ -680,7 +728,7 @@ func (e *Evaluator) script(node *parser.Script) Value {
 	for _, stmt := range node.Statements {
 		e.Eval(stmt)
 	}
-	return &Null{}
+	return nil
 }
 
 func toBoolean(value Value) bool {

@@ -486,21 +486,21 @@ func (al *ArrayLiteral) String() string {
 	return str.String()
 }
 
-type MapLiteral struct {
+type TableLiteral struct {
 	Pairs map[Expression]Expression
 }
 
-func (ml *MapLiteral) Node()       {}
-func (ml *MapLiteral) Expression() {}
-func (ml *MapLiteral) String() string {
+func (tl *TableLiteral) Node()       {}
+func (tl *TableLiteral) Expression() {}
+func (tl *TableLiteral) String() string {
 	var str strings.Builder
-	str.WriteString("map{")
+	str.WriteString("table{")
 	i := 0
-	for k, v := range ml.Pairs {
+	for k, v := range tl.Pairs {
 		str.WriteString(
 			fmt.Sprintf("[%s] = %s", k, v),
 		)
-		if i != len(ml.Pairs)-1 {
+		if i != len(tl.Pairs)-1 {
 			str.WriteString(", ")
 		}
 		i++

@@ -111,8 +111,8 @@ func (p *Parser) expression(prec precedence) Expression {
 		expr = p.funLit()
 	case lexer.ARRAY:
 		expr = p.arrayLit()
-	case lexer.MAP:
-		expr = p.mapLit()
+	case lexer.TABLE:
+		expr = p.tableLit()
 
 	case lexer.NULL:
 		expr = &NullLiteral{}
@@ -409,10 +409,10 @@ func (p *Parser) arrayLit() *ArrayLiteral {
 	return lit
 }
 
-func (p *Parser) mapLit() *MapLiteral {
-	lit := &MapLiteral{}
+func (p *Parser) tableLit() *TableLiteral {
+	lit := &TableLiteral{}
 	p.expect(lexer.L_BRACE)
-	lit.Pairs = p.mapPairs()
+	lit.Pairs = p.tablePairs()
 	return lit
 }
 
@@ -461,7 +461,7 @@ func (p *Parser) indexOrSliceExpr(left Expression) Expression {
 
 /* == parse utility ==========================================================*/
 
-func (p *Parser) mapPairs() map[Expression]Expression {
+func (p *Parser) tablePairs() map[Expression]Expression {
 	pairs := map[Expression]Expression{}
 	if p.peek().Type == lexer.R_BRACE {
 		p.advance()

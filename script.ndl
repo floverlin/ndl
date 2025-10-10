@@ -1,9 +1,15 @@
-var a = 1;
-switch (a) {
-    // case 1:
-    //     say 1;
-    //     break;
-    case 1 + 1, 3:
-        say 2;
-        break;
-}
+var tbl = table{
+    ["name"] = "Lin",
+    ["surname"] = "Drain",
+};
+
+say tbl["name"] or 12;
+tbl.delete("name");
+say tbl.size();
+
+say "asd".reverse();
+
+var arr = array{1, 2, 3};
+say arr[2];
+arr.push("linovoe");
+say arr[3];

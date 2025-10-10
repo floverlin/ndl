@@ -45,7 +45,7 @@ const (
 	VAL_EXCEPTION ValueType = "exception"
 	VAL_CLASS     ValueType = "class"
 	VAL_ARRAY     ValueType = "array"
-	VAL_MAP       ValueType = "map"
+	VAL_TABLE     ValueType = "table"
 )
 
 type ReturnSignal struct {
@@ -117,7 +117,7 @@ func (f *Function) Debug() string {
 
 type Method struct {
 	Function      *Function
-	This          *Instance
+	This          Value
 	IsConstructor bool
 }
 
@@ -184,13 +184,13 @@ func (a *Array) Debug() string {
 	return fmt.Sprintf("<array %p>", a)
 }
 
-type Map struct {
+type Table struct {
 	Pairs *HashTable
 }
 
-func (m *Map) Type() ValueType { return VAL_MAP }
-func (m *Map) Debug() string {
-	return fmt.Sprintf("<map %p>", m)
+func (t *Table) Type() ValueType { return VAL_TABLE }
+func (t *Table) Debug() string {
+	return fmt.Sprintf("<table %p>", t)
 }
 
 type HashTable struct {
@@ -229,6 +229,25 @@ func (ht *HashTable) Get(key Value) (Value, error) {
 	}
 }
 
+func (ht *HashTable) Delete(key Value) (bool, error) {
+	switch key := key.(type) {
+	case *Boolean:
+		_, ok := ht.boolMap[key.Value]
+		delete(ht.boolMap, key.Value)
+		return ok, nil
+	case *Number:
+		_, ok := ht.numMap[key.Value]
+		delete(ht.numMap, key.Value)
+		return ok, nil
+	case *String:
+		_, ok := ht.strMap[key.Value]
+		delete(ht.strMap, key.Value)
+		return ok, nil
+	default:
+		return false, errors.New("unhashable type")
+	}
+}
+
 func (ht *HashTable) Set(key Value, value Value) (bool, error) {
 	switch key := key.(type) {
 	case *Boolean:
@@ -246,4 +265,8 @@ func (ht *HashTable) Set(key Value, value Value) (bool, error) {
 	default:
 		return false, errors.New("unhashable type")
 	}
+}
+
+func (ht *HashTable) Size() int {
+	return len(ht.strMap) + len(ht.boolMap) + len(ht.numMap)
 }

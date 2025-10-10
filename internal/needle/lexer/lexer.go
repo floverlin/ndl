@@ -276,7 +276,7 @@ var indentifiers = map[string]LexemeType{
 	"fun":   FUN,
 	"class": CLASS,
 	"array": ARRAY,
-	"map":   MAP,
+	"table": TABLE,
 
 	"null":  NULL,
 	"true":  BOOLEAN,

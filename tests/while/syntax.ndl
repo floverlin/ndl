@@ -9,8 +9,8 @@ while (c < 3) {
 
 var a = 0;
 while (a < 3) {
-  say a;
-  a = a + 1;
+    say a;
+    a = a + 1;
 }
 //# 0
 //# 1

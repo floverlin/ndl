@@ -86,7 +86,7 @@ const (
 	FUN   LexemeType = "fun"
 	CLASS LexemeType = "class"
 	ARRAY LexemeType = "array"
-	MAP   LexemeType = "map"
+	TABLE LexemeType = "table"
 
 	FOR     LexemeType = "for"
 	WHILE   LexemeType = "while"

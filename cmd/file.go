@@ -47,9 +47,8 @@ func RunFile(filePath string) error {
 	fmt.Println("== AST ==")
 	fmt.Println(strings.TrimSpace(script.String()))
 
-	glob := evaluator.NewEnv(nil)
-	evaluator.LoadBuiltins(glob)
-	ev := evaluator.New(glob)
+	ev := evaluator.New()
+	evaluator.LoadBuiltins(ev)
 	fmt.Println("== Output ==")
 	start := time.Now()
 	err = ev.Run(script)

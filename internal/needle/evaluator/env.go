@@ -10,17 +10,39 @@ var (
 	errVarNotExists     = errors.New("variable not exists")
 )
 
+type Globals struct {
+	Null  *Null
+	True  *Boolean
+	False *Boolean
+}
+
+func newGlobals() *Globals {
+	return &Globals{
+		Null:  &Null{},
+		True:  &Boolean{Value: true},
+		False: &Boolean{Value: false},
+	}
+}
+
 type Env struct {
-	store map[string]Value
-	outer *Env
-	this  *Instance
+	store   map[string]Value
+	outer   *Env
+	this    Value
+	globals *Globals
 }
 
 // outer can be nil, but root env must have global outer
 func NewEnv(outer *Env) *Env {
+	var g *Globals
+	if outer != nil {
+		g = outer.globals
+	} else {
+		g = newGlobals()
+	}
 	return &Env{
-		store: make(map[string]Value),
-		outer: outer,
+		store:   make(map[string]Value),
+		outer:   outer,
+		globals: g,
 	}
 }
 
@@ -60,12 +82,13 @@ func (e *Env) Clone() *Env {
 		outer = e.outer.Clone()
 	}
 	return &Env{
-		store: maps.Clone(e.store),
-		outer: outer,
+		store:   maps.Clone(e.store),
+		outer:   outer,
+		globals: e.globals,
 	}
 }
 
-func (e *Env) GetThis() *Instance {
+func (e *Env) GetThis() Value {
 	if e.this != nil {
 		return e.this
 	}
@@ -75,6 +98,6 @@ func (e *Env) GetThis() *Instance {
 	return nil
 }
 
-func (e *Env) SetThis(this *Instance) {
+func (e *Env) SetThis(this Value) {
 	e.this = this
 }
