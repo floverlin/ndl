@@ -14,7 +14,7 @@ type FType string
 
 type Value interface {
 	Type() ValueType
-	Debug() string
+	Say() string
 }
 
 type SignalType string
@@ -69,14 +69,14 @@ func (cs *ContinueSignal) Signal() SignalType { return SIG_RETURN }
 type Null struct{}
 
 func (n *Null) Type() ValueType { return VAL_NULL }
-func (n *Null) Debug() string   { return "null" }
+func (n *Null) Say() string   { return "null" }
 
 type Boolean struct {
 	Value bool
 }
 
 func (b *Boolean) Type() ValueType { return VAL_BOOLEAN }
-func (b *Boolean) Debug() string {
+func (b *Boolean) Say() string {
 	return strconv.FormatBool(b.Value)
 }
 
@@ -87,7 +87,7 @@ type Number struct {
 func (n *Number) Type() ValueType {
 	return VAL_NUMBER
 }
-func (n *Number) Debug() string {
+func (n *Number) Say() string {
 	return strconv.FormatFloat(n.Value, 'g', -1, 64)
 }
 
@@ -96,7 +96,7 @@ type String struct {
 }
 
 func (s *String) Type() ValueType { return VAL_STRING }
-func (s *String) Debug() string {
+func (s *String) Say() string {
 	return fmt.Sprintf("\"%s\"", s.Value)
 }
 
@@ -111,7 +111,7 @@ type Function struct {
 func (f *Function) Type() ValueType {
 	return VAL_FUNCTION
 }
-func (f *Function) Debug() string {
+func (f *Function) Say() string {
 	return fmt.Sprintf("<function %p>", f)
 }
 
@@ -124,7 +124,7 @@ type Method struct {
 func (m *Method) Type() ValueType {
 	return VAL_METHOD
 }
-func (m *Method) Debug() string {
+func (m *Method) Say() string {
 	return fmt.Sprintf("<function %p>", m)
 }
 
@@ -138,7 +138,7 @@ type Class struct {
 }
 
 func (c *Class) Type() ValueType { return VAL_FUNCTION }
-func (c *Class) Debug() string {
+func (c *Class) Say() string {
 	return fmt.Sprintf("<class %p>", c)
 }
 
@@ -148,7 +148,7 @@ type Instance struct {
 }
 
 func (i *Instance) Type() ValueType { return VAL_FUNCTION }
-func (i *Instance) Debug() string {
+func (i *Instance) Say() string {
 	return fmt.Sprintf("<instance %p of class %p>", i, i.Class)
 }
 
@@ -158,14 +158,14 @@ type Exception struct {
 }
 
 func (e *Exception) Type() ValueType { return VAL_EXCEPTION }
-func (e *Exception) Debug() string {
+func (e *Exception) Say() string {
 	return fmt.Sprintf("<exception %p>", e)
 }
 func (e *Exception) Error() string {
 	var trace strings.Builder
 	for _, fun := range e.StackTrace {
 		trace.WriteString("\t")
-		trace.WriteString(fun.Debug())
+		trace.WriteString(fun.Say())
 		trace.WriteString("\n")
 	}
 	return fmt.Sprintf(
@@ -180,7 +180,7 @@ type Array struct {
 }
 
 func (a *Array) Type() ValueType { return VAL_ARRAY }
-func (a *Array) Debug() string {
+func (a *Array) Say() string {
 	return fmt.Sprintf("<array %p>", a)
 }
 
@@ -189,7 +189,7 @@ type Table struct {
 }
 
 func (t *Table) Type() ValueType { return VAL_TABLE }
-func (t *Table) Debug() string {
+func (t *Table) Say() string {
 	return fmt.Sprintf("<table %p>", t)
 }
 

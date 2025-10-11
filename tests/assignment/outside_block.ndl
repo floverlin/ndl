@@ -1,0 +1,6 @@
+var a;
+say a; //# null
+{
+    a = 1;
+}
+say a; //# 1

@@ -1,0 +1,16 @@
+var f = fun() {
+    var i = 0;
+    var f = fun() {
+        var _i = i;
+        i = i + 1;
+        return _i;
+    };
+    return f;
+};
+
+var g = f();
+
+say g();  //# 0
+say g();  //# 1
+say g();  //# 2
+say g();  //# 3

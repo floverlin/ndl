@@ -229,7 +229,7 @@ func (e *Evaluator) table(node *parser.TableLiteral) Value {
 }
 
 func (e *Evaluator) say(node *parser.SayStatement) Value {
-	fmt.Println(e.Eval(node.Expression).Debug())
+	fmt.Println(e.Eval(node.Expression).Say())
 	return nil
 }
 
@@ -383,7 +383,7 @@ func (e *Evaluator) try(node *parser.TryStatement) Value {
 }
 
 func (e *Evaluator) throw(node *parser.ThrowStatement) Value {
-	e.ThrowException("%s", e.Eval(node.Error).Debug())
+	e.ThrowException("%s", e.Eval(node.Error).Say())
 	return nil
 }
 
@@ -633,6 +633,16 @@ func (e *Evaluator) property(node *parser.PropertyExpression) Value {
 		e.ThrowException("missing field or method")
 	case *Table:
 		pub, ok := e.defaultClasses[CLASS_TABLE].Public[prop]
+		if ok {
+			return &Method{
+				Function:      pub,
+				This:          left,
+				IsConstructor: false,
+			}
+		}
+		e.ThrowException("missing field or method")
+	case *Exception:
+		pub, ok := e.defaultClasses[CLASS_EXCEPTION].Public[prop]
 		if ok {
 			return &Method{
 				Function:      pub,

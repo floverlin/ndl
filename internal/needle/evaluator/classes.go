@@ -3,10 +3,11 @@ package evaluator
 import "strconv"
 
 const (
-	CLASS_NUMBER = "Number"
-	CLASS_STRING = "String"
-	CLASS_ARRAY  = "Array"
-	CLASS_TABLE  = "Table"
+	CLASS_NUMBER    = "Number"
+	CLASS_STRING    = "String"
+	CLASS_ARRAY     = "Array"
+	CLASS_TABLE     = "Table"
+	CLASS_EXCEPTION = "Exception"
 )
 
 func newNumberClass() *Class {
@@ -134,11 +135,26 @@ func newTableClass() *Class {
 	}
 }
 
+func newExceptionClass() *Class {
+	return &Class{
+		Public: map[string]*Function{
+			"message": {
+				FType: F_NATIVE,
+				Native: coverNative(func(e *Evaluator, this Value, args ...Value) Value {
+					exc := this.(*Exception)
+					return &String{Value: exc.Message}
+				}, 0),
+			},
+		},
+	}
+}
+
 func CreateBaseClasses() map[string]*Class {
 	classes := map[string]*Class{}
 	classes[CLASS_NUMBER] = newNumberClass()
 	classes[CLASS_STRING] = newStringClass()
 	classes[CLASS_ARRAY] = newArrayClass()
 	classes[CLASS_TABLE] = newTableClass()
+	classes[CLASS_EXCEPTION] = newExceptionClass()
 	return classes
 }

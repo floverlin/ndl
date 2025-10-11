@@ -1,6 +1,11 @@
-var a = array{1, 2, 3};
-say a;
-say a.pop();
-say a.length();
-say a.pop();
-say a.length();
+var i = 0;
+var start = clock();
+
+var arr = array{};
+while (i < 100000) {
+    arr.push(i);
+    i = i + 1;
+}
+
+say clock() - start;
+say arr.length();

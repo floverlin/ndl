@@ -1,0 +1,19 @@
+var create = fun(num, val) {
+    var arr = array{};
+    while (num > 0) {
+        arr.push(val);
+        num = num - 1;
+    }
+    return arr;
+};
+
+var arr = create(20, null);
+arr[15] = "hello";
+say arr[14];  //# null
+say arr[15];  //# "hello"
+say arr[16];  //# null
+
+var tbl = table{};
+var name_key = "name";
+tbl[name_key] = "Dennis";
+say tbl[name_key];  //# "Dennis"
